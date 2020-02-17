@@ -49,6 +49,53 @@ to the new repository.
 - All milestones have been prototyped but are yet to be tested. Currently, all functions
 exist in a single main.py file, but this should be broken up into separate modules.
 I will link to working code snippets with respect to each milestone once testing is complete.
+- main.py now contains a working prototype script which displays a matplotlib scatter plot of two
+Argon molecules moving in a 100x100 Angstrom box with periodic boundary conditions.
+
+End of week report:
+
+The positions and velocities of two particles moving in 2D are tracked in a numpy array. Multiple
+sheets for timesteps are stored in memory such that the time-evolution of the particles can be plotted
+for investigation after each simulation. Several methods to easily get/set the coordinates and velocities
+have been implemented for ease of development.
+
+The Since the Lennard-Jones potential is only a function of r (the distance between the particles), we have
+precomputed the value of the potential for a range possible distances that the particle may take (noting that this
+is no larger than the dimension of the periodic box). By precomputing this 1D vector, we use numpy.gradient to calculate
+the derivative with respect to the distance. This derivative can be used to compute both x and y components of the gradient
+such that the force between particles can be calculated. The derivative values are stored as a global array and the force
+is computed on demand by the function getForce(). This function uses the shortest distance between the two particles to compute
+the force between them, and also takes into account their orientation such that the force vector on each particle points
+in the proper direction.
+
+The Euler method for time evolution was implemented in two separate functions which iterate the coordinates and velocities
+of the particles respecitvely. This is trivial once the force at the given timestep has been calculated, since the previous
+coordinates and velocities can be used to update the next slot in the array.
+
+The periodic boundary conditions are working well, as evidenced by the particles moving off and
+on the plot window as expected. The program runs efficiently, with a timestep of 1e-4 seconds
+currently being refreshed at 20fps so that the particle motion is slow enough to investigate. A plot of the x-coordinate
+of one particle moving (uninterrupted by the second particle) is shown rastering across the box:
+
+![alt text](img/week1/week1_raster.png "Periodic BCs")
+
+The total energy of the system is also computed, as the sum of both the Lennard-Jones potential between the particles
+and the sum of the kinetic energy of the two particles. Energy data is saved by the simulation for investigation afterwards.
+The preset particles will collide after a few seconds (the value of sigma was slightly modified
+such that this occurs), and the particles will change direction accordingly. One problem is that
+direct collisions result in the particle gaining a substantial amount of velocity such that energy
+is not conserved, as shown in the plot below. This will require more conversation and investigation to debug.
+
+![alt text](img/week1/week1_energy.png "Energy Jump")
+
+Improvements to be made:
+- The prototype code still exists in a main.py file. This is ugly and should be broken up into modules for ease
+of maintenance and extensibility.
+- The energy jump during particle collisions is clunky, and could be result of the pre-computed gradient being
+too course for a smoother interaction to be seen. We should take a closer look at this before being too committed
+to this method.
+- A matplotlib scatter plot is effective for basic debugging and displaying of the particles, but should be replaced
+by something less hacky. It would be nice to have something which we could easily record simulations for later comparison.
 
 ## Week 2
 (due before 25 February)
