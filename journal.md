@@ -27,7 +27,25 @@ useful.
 
 ## Week 1
 (due before 18 February)
+Wednesday 12 February (Group)
+TODO List Week 1:
+- Decide how to store particle velocity and position at each timestep
+- Implement function to calculate Lennard-Jones potential between particles
+- Implement function to perform Euler method for time evolution
+- Account for periodic boundary conditions
+- Implement function to calculate kinetic, potential and total energies of system
 
+Sunday 16 February (Brennan)
+- implemented functions for easier access to parameters
+- built prototype functions for calculating distance between particles
+with periodic boundary conditions
+- calculated total potential and kinetic energies of particles
+- calculating force between particles in progress
+
+Monday 17 February (Brennan)
+- The tracked directory was set up by the bot. Our previous directory was private.
+All commits to our (old) journal along with the code in main.py have been moved
+to the new repository.
 
 ## Week 2
 (due before 25 February)
