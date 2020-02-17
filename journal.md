@@ -59,7 +59,7 @@ sheets for timesteps are stored in memory such that the time-evolution of the pa
 for investigation after each simulation. Several methods to easily get/set the coordinates and velocities
 have been implemented for ease of development.
 
-The Since the Lennard-Jones potential is only a function of r (the distance between the particles), we have
+Since the Lennard-Jones potential is only a function of r (the distance between the particles), we have
 precomputed the value of the potential for a range possible distances that the particle may take (noting that this
 is no larger than the dimension of the periodic box). By precomputing this 1D vector, we use numpy.gradient to calculate
 the derivative with respect to the distance. This derivative can be used to compute both x and y components of the gradient
@@ -67,6 +67,46 @@ such that the force between particles can be calculated. The derivative values a
 is computed on demand by the function getForce(). This function uses the shortest distance between the two particles to compute
 the force between them, and also takes into account their orientation such that the force vector on each particle points
 in the proper direction.
+
+The derivative computation:
+
+```
+n = 1000 # number of discrete distances with a precomputed gradient
+r_vec = np.linspace(sizeOfBox/n,sizeOfBox,n) # 1D array of all possible distances of particles (up to some user-defined precision)
+
+# evaluate the Lennard Jones Potential on the grid
+U_lj = 4*epsilon*((sigma/r_vec)**12-(sigma/r_vec)**6)
+
+# evaluate the derivative of the Lennard Jones Potential with respect to r (1D array)
+dUdr = np.gradient(U_lj,sizeOfBox/n)
+```
+
+The force computation:
+```
+def getForce(ts):
+    # calculates the force on each particle at a given timestep in the x and y directions (returned as a 4-tuple: f1x,f2x,f1y,f2y)
+    rel_x = getP1Xcoord(ts)-getP2Xcoord(ts)
+    # check for periodic boundary conditions (in x direction), and account for orientation of particles 1 and 2
+    if abs(rel_x) > sizeOfBox/2:
+        if rel_x < 0:
+            rel_x = sizeOfBox-abs(rel_x)
+        else:
+            rel_x = -sizeOfBox+abs(rel_x)
+    # repeat for y direction
+    rel_y = getP1Ycoord(ts)-getP2Ycoord(ts)
+    if abs(rel_y) > sizeOfBox/2:
+        if rel_y < 0:
+            rel_y = sizeOfBox-abs(rel_y)
+        else:
+            rel_y = -sizeOfBox+abs(rel_y)
+    r = np.sqrt(rel_x**2+rel_y**2)
+    grad = getdUdr(r)
+    force_P1_X = -grad*rel_x/r
+    force_P2_X = grad*rel_x/r # change of sign from force_P1_X since forces must be equal and opposite
+    force_P1_Y = -grad*rel_y/r
+    force_P2_Y = grad*rel_y/r
+    return force_P1_X,force_P2_X,force_P1_Y,force_P2_Y
+```
 
 The Euler method for time evolution was implemented in two separate functions which iterate the coordinates and velocities
 of the particles respecitvely. This is trivial once the force at the given timestep has been calculated, since the previous
@@ -88,9 +128,13 @@ is not conserved, as shown in the plot below. This will require more conversatio
 
 ![alt text](img/week1/week1_energy.png "Energy Jump")
 
+The particles are currently displayed in a scatter plot like so:
+
+![alt text](img/week1/week1_scatterplot.png "Scatter Plot")
+
 Improvements to be made:
 - The prototype code still exists in a main.py file. This is ugly and should be broken up into modules for ease
-of maintenance and extensibility.
+of maintenance and extensibility. Dedicated classes for certain tasks (such as computing the force) should be made.
 - The energy jump during particle collisions is clunky, and could be result of the pre-computed gradient being
 too course for a smoother interaction to be seen. We should take a closer look at this before being too committed
 to this method.
