@@ -46,6 +46,9 @@ Monday 17 February (Brennan)
 - The tracked directory was set up by the bot. Our previous directory was private.
 All commits to our (old) journal along with the code in main.py have been moved
 to the new repository.
+- All milestones have been prototyped but are yet to be tested. Currently, all functions
+exist in a single main.py file, but this should be broken up into separate modules.
+I will link to working code snippets with respect to each milestone once testing is complete.
 
 ## Week 2
 (due before 25 February)
