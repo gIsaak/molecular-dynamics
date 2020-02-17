@@ -1,5 +1,13 @@
 # Project 1: Molecular dynamics simulation of Argon atoms
 
-The README.md file serves as a reference for other users visiting your repository.
-It should contain a brief description of your project, and document the steps others need to take to get your application up and running.
-In addition, it should list the authors of the project.
+This project simulates the dynamics of Argon atoms under the influence of a Lennard-Jones potential.
+Currently, two particles moving in a box with periodic boundary conditions are simulated for a
+user-defined number of timesteps. The particle positions are plotted in a separate window as
+the simulation progresses.
+
+Requisites: numpy,matplotlib
+
+Authors:
+- Brennan Undseth
+- Ludwig Hendl
+- Isacco Gobbi
