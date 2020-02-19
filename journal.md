@@ -143,6 +143,14 @@ by something less hacky. It would be nice to have something which we could easil
 
 ## Week 2
 (due before 25 February)
+Wednesday 19 February (Group)
+Conversion to natural units was already by Isacco. 
+Plan for this week is to split the work like this:
+- Brennan will work on the simulation in 3D and producing the plots
+- Isacco will finish the computation of energies and split functions into more logical modules
+- Ludwig will recover (injury) and get up to date with the code as well as debug
+
+We plan to reach all milestones for this week by friday in order for the debugging to happen in the weekend and finalize the journal writing before monday.
 
 
 ## Week 3
