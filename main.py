@@ -14,8 +14,9 @@ L = 10 # size of each periodic unit cell L (in units of sigma)
 numOfParticles = 2 # 2 particles
 numOfDimensions = 3 # 3D
 
-num_t = 1000 # time steps
+num_t = 800 # time steps
 timestep = 0.001 # time between iterations of Euler's method
+
 
 # Create n x d x 2 numpy array of floats "parameterMatrix" to store n particles
 # in d dimensions with 2 (position and velocity) parameters, and num_t timesteps stored.
@@ -26,6 +27,13 @@ timestep = 0.001 # time between iterations of Euler's method
 # parameterMatrix[0][0][1][1]
 
 parameterMatrix = np.zeros((numOfParticles,numOfDimensions,2,num_t), dtype=float)
+
+# Initialize potential energy matrix U and total energy E
+# TODO maybe make matrix?
+
+U = np.zeros((num_t,1), dtype=float)
+E = np.zeros((num_t,1), dtype=float)
+
 
 # Get particles positions and velocities
 # particle index p in 0,..,n-1
@@ -72,27 +80,20 @@ def getParticleDistance(p1,p2,ts):
     r = np.sqrt(x_dist**2 + y_dist**2 + z_dist**2)
     return r,x_dist,y_dist,z_dist
 
-#TODO fix these two
-
-#def getPotentialEnergy(ts):
-    # returns the potential energy (Lennard Jones) at the given timestep
-    # natural units
-#    r,__,__,__ = getParticleDistance(ts)
-#    return 4*((1/r)**12-(1/r)**6)
-
-#def getTotalEnergy(ts):
+def getTotalEnergy(ts):
     # calculates sum of potential energy and kinetic energy at the timestep
     # of particles in a unit cell
     # Natural units
-#    U = getPotentialEnergy(ts)
-#    T = 0
-#    for i in range(numOfParticles):
-#        T = T + getPXvel(i,ts)**2+getPYvel(i,ts)**2+getPZvel(i,ts)**2
-#    return U + T/2
+    T = 0
+    for i in range(numOfParticles):
+        T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
+    E[ts] = U[ts] + T/2
 
+# TODO choose a better name
 def getForce(ts):
-    # calculates the force on each particle at a given timestep
-    # returns n x d numpy array of floats "forceMatrix" to store n fx,fy,fz
+    # calculates the force on each particle and
+    # U of the system  at a given timestep
+    # returns n x d numpy array of floats "forceMatrix" to store fx,fy,fz
     # for each particle
     forceMatrix = np.zeros((numOfParticles,numOfDimensions), dtype=float)
 
@@ -100,13 +101,18 @@ def getForce(ts):
         j = 0
         while j < i:
             r,rel_x,rel_y,rel_z = getParticleDistance(i,j,ts)
-            grad = 24*(-2*(1/r)**12  + (1/r)**6)/r
+            invr6 = (1/r)**6 #precomputes (1/r)**6
+            grad = 24/r * (-2*invr6**2  + invr6)
+            # Compute forces
             forceMatrix[i][0] = forceMatrix[i][0] - grad*rel_x/r
             forceMatrix[i][1] = forceMatrix[i][1] - grad*rel_y/r
             forceMatrix[i][2] = forceMatrix[i][2] - grad*rel_z/r
             forceMatrix[j][0] = forceMatrix[j][0] + grad*rel_x/r
             forceMatrix[j][1] = forceMatrix[j][1] + grad*rel_y/r
             forceMatrix[j][2] = forceMatrix[j][2] + grad*rel_z/r
+            # Compute U
+            U[ts] = 4*(invr6**2 - invr6)
+
             j += 1
     return forceMatrix
 
@@ -166,11 +172,7 @@ setPXvel(20,1,0)
 setPYvel(-50,1,0)
 setPZvel(0,1,0)
 
-
-
-#energies = np.zeros(100,dtype=float)
-
-
+##### Simulation #####
 fig = plt.figure()
 ax = fig.add_axes([0,0,1,1])
 p1 = ax.scatter(parameterMatrix[0][0][0][0],parameterMatrix[0][1][0][0], color='r')
@@ -181,9 +183,8 @@ plt.ion()
 plt.show()
 plt.pause(0.001)
 
-for j in range(1000):
+for j in range(num_t):
     i = j%num_t # don't go over indices of parameterMatrix
-    #energies[i] = getTotalEnergy(i)
     iterateCoordinates(i)
     iterateVelocities(i)
     p1.remove()
@@ -192,3 +193,10 @@ for j in range(1000):
     p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i),color='b')
     plt.pause(0.00005)
     #time.sleep(0.05)
+
+# Plot U
+#time = np.arange(0, num_t*timestep, timestep)
+#plt.plot(time, U)
+#plt.xlabel('time')
+#plt.ylabel('U')
+#plt.show()
