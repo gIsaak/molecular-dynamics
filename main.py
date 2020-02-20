@@ -3,19 +3,19 @@ import matplotlib.pyplot as plt
 import time
 
 ##### Parameters #####
-L = 10 # size of each periodic unit cell L (in units of sigma)
-timestep = 0.001 # time between iterations of Euler's method
 
 # Lennard-Jones parameters Argon
-eps = 119.8 # k_b
-sigma = 3.405 # Angstrom
+#eps = 119.8 # k_b
+#sigma = 3.405 # Angstrom
+#mass = 39.948*1.66e-27 #Kg
 
-# Argon parameters (SI)
-mass = 39.948*1.66e-27 #Kg
+L = 10 # size of each periodic unit cell L (in units of sigma)
 
 numOfParticles = 2 # 2 particles
 numOfDimensions = 3 # 3D
-num_t = 100 # time steps
+
+num_t = 1000 # time steps
+timestep = 0.001 # time between iterations of Euler's method
 
 # Create n x d x 2 numpy array of floats "parameterMatrix" to store n particles
 # in d dimensions with 2 (position and velocity) parameters, and num_t timesteps stored.
@@ -24,8 +24,6 @@ num_t = 100 # time steps
 # parameterMatrix[1][1][0][0]
 # Access particle 1's momentum in the x-direction at time_step=1 as
 # parameterMatrix[0][0][1][1]
-
-# TODO is ts necessary everywhere?
 
 parameterMatrix = np.zeros((numOfParticles,numOfDimensions,2,num_t), dtype=float)
 
@@ -59,27 +57,19 @@ def setPYvel(val,p,ts):
 def setPZvel(val,p,ts):
     parameterMatrix[p][2][1][ts] = val
 
-
-def getdUdr(r):
-    # given a distance r, returns the derivative of the Lennard-Jones potential with respect to r evaluated at that point
-    dUdr_index = int(round(r/L*n))
-    return dUdr[dUdr_index]
-
-# TODO think how to improve this
 def getParticleDistance(p1,p2,ts):
     # function that returns distance between p1 and p2
     # at the given timestep "ts"
-    # (returned as a 4-tuple: r,x1->2,y1->2,z1->2)
+    # (returned as a 4-tuple: r,x1-2,y1-2,z1-2)
     # includes periodic boundary conditions
-    x_dist = getPXcoord(p2,ts) - getPXcoord(p1,ts)
-    y_dist = getPYcoord(p2,ts) - getPYcoord(p1,ts)
-    z_dist = getPZcoord(p2,ts) - getPZcoord(p1,ts)
+    x_dist = getPXcoord(p1,ts) - getPXcoord(p2,ts)
+    y_dist = getPYcoord(p1,ts) - getPYcoord(p2,ts)
+    z_dist = getPZcoord(p1,ts) - getPZcoord(p2,ts)
     x_dist = (x_dist + L/2)%L - L/2
     y_dist = (y_dist + L/2)%L - L/2
     z_dist = (z_dist + L/2)%L - L/2
 
     r = np.sqrt(x_dist**2 + y_dist**2 + z_dist**2)
-    # calculate and return distance shortest distance between particles
     return r,x_dist,y_dist,z_dist
 
 #TODO fix these two
@@ -100,7 +90,6 @@ def getParticleDistance(p1,p2,ts):
 #        T = T + getPXvel(i,ts)**2+getPYvel(i,ts)**2+getPZvel(i,ts)**2
 #    return U + T/2
 
-## TODO improve this (e.g velocities are unused)
 def getForce(ts):
     # calculates the force on each particle at a given timestep
     # returns n x d numpy array of floats "forceMatrix" to store n fx,fy,fz
@@ -111,7 +100,7 @@ def getForce(ts):
         j = 0
         while j < i:
             r,rel_x,rel_y,rel_z = getParticleDistance(i,j,ts)
-            grad = getdUdr(r)
+            grad = 24*(-2*(1/r)**12  + (1/r)**6)/r
             forceMatrix[i][0] = forceMatrix[i][0] - grad*rel_x/r
             forceMatrix[i][1] = forceMatrix[i][1] - grad*rel_y/r
             forceMatrix[i][2] = forceMatrix[i][2] - grad*rel_z/r
@@ -119,7 +108,6 @@ def getForce(ts):
             forceMatrix[j][1] = forceMatrix[j][1] + grad*rel_y/r
             forceMatrix[j][2] = forceMatrix[j][2] + grad*rel_z/r
             j += 1
-            print("fx on 1:", forceMatrix[0][0])
     return forceMatrix
 
 
@@ -160,20 +148,6 @@ def iterateVelocities(ts):
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
 
-
-#### Precompute Lennard Jones force ####
-
-# since potential is only a function of distance, we can efficiently
-# compute the potential for all possible distances (given periodic BCs),
-n = 100000 # number of discrete distances with a precomputed gradient
-r_vec = np.linspace(L/n,L,n) # 1D array of all possible distances of particles (up to some user-defined precision)
-
-# evaluate the Lennard Jones Potential on the grid (natural units)
-U_lj = 4*((1/r_vec)**12-(1/r_vec)**6)
-
-# evaluate the derivative of the Lennard Jones Potential with respect to r
-dUdr = np.gradient(U_lj,L/n) # access dU/dr with dUdr[distance]
-
 ################# Begin main program ########################
 
 # set random starting point for particles
@@ -187,10 +161,12 @@ setPZvel(0,0,0)
 # Particle 2
 setPXcoord(1,1,0)
 setPYcoord(1,1,0)
-setPZcoord(+0.,1,0)
+setPZcoord(0,1,0)
 setPXvel(20,1,0)
-setPYvel(-10,1,0)
+setPYvel(-50,1,0)
 setPZvel(0,1,0)
+
+
 
 #energies = np.zeros(100,dtype=float)
 
@@ -214,5 +190,5 @@ for j in range(1000):
     p2.remove()
     p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i),color='r')
     p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i),color='b')
-    plt.pause(0.001)
-    time.sleep(0.05)
+    plt.pause(0.00005)
+    #time.sleep(0.05)
