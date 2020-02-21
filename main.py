@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import time
+#import time
 
 ##### Parameters #####
 
@@ -14,8 +14,8 @@ L = 10 # size of each periodic unit cell L (in units of sigma)
 numOfParticles = 2 # 2 particles
 numOfDimensions = 3 # 3D
 
-num_t = 800 # time steps
-timestep = 0.001 # time between iterations of Euler's method
+num_t = 1000 # time steps
+timestep = 0.001 # time between iterations of Euler's and Verlet's method
 
 
 # Create n x d x 2 numpy array of floats "parameterMatrix" to store n particles
@@ -153,6 +153,57 @@ def iterateVelocities(ts):
         setPXvel(newPXvel,i,next_ts)
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
+        
+# using the same iterator structure but velocity-verlet algorithm
+# ==================================
+# TO DO:      
+# ================================== 
+# take future force into account. Now when clculating the force at one time step
+# ahead we end up using the present particles position instead of the future one
+# need to implement a way that calculates the position one step ahead seperately
+# could use conditional function, open to discuss
+        
+def iterateCoordinates_Verlet(ts):
+    # takes current position, velocity and force at timestep ts and 
+    # updates particle coordinates for timestep ts+1
+    if ts + 1 == num_t:
+        next_ts = 0
+    else:
+        next_ts = ts + 1
+        
+    force = getForce(ts)
+    for i in range(numOfParticles):
+        newPXcoord = fixPos(getPXcoord(i,ts) + getPXvel(i,ts)*timestep + \
+                            0.5*force[i][0]*timestep**2)
+        newPYcoord = fixPos(getPYcoord(i,ts) + getPYvel(i,ts)*timestep + \
+                            0.5*force[i][1]*timestep**2)
+        newPZcoord = fixPos(getPZcoord(i,ts) + getPZvel(i,ts)*timestep + \
+                            0.5*force[i][0]*timestep**2)
+
+        setPXcoord(newPXcoord,i,next_ts)
+        setPYcoord(newPYcoord,i,next_ts)
+        setPZcoord(newPZcoord,i,next_ts)
+        
+def iterateVelocities_Verlet(ts):
+    # takes current velocity and force at timestep ts and ts+1
+    # and updates particle velicities for timestep ts+1
+    # changed if condition to ts+2 due to need to force at ts+1 for updating velocities
+    if ts + 2 == num_t:
+        next_ts = 0
+    else:
+        next_ts = ts + 1
+
+    force = getForce(ts)
+    # iterateCoordinates_Verlet(ts)
+    force_1 = getForce(ts+1)
+    for i in range(numOfParticles):
+        newPXvel = getPXvel(i,ts) + 0.5*timestep*(force_1[i][0] + force[i][0])
+        newPYvel = getPYvel(i,ts) + 0.5*timestep*(force_1[i][1] + force[i][0])
+        newPZvel = getPZvel(i,ts) + 0.5*timestep*(force_1[i][2] + force[i][0])
+
+        setPXvel(newPXvel,i,next_ts)
+        setPYvel(newPYvel,i,next_ts)
+        setPZvel(newPZvel,i,next_ts)
 
 ################# Begin main program ########################
 
@@ -172,6 +223,7 @@ setPXvel(20,1,0)
 setPYvel(-50,1,0)
 setPZvel(0,1,0)
 
+
 ##### Simulation #####
 fig = plt.figure()
 ax = fig.add_axes([0,0,1,1])
@@ -181,8 +233,16 @@ ax.set_xlim((0,L))
 ax.set_ylim((0,L))
 plt.ion()
 plt.show()
-plt.pause(0.001)
+plt.pause(0.01)
 
+# vp1 and vp2 to keep track of the velocities
+vp1 = np.zeros(num_t)
+vp2 = np.zeros(num_t)
+
+# use iteration in range(num_t) and iterateCoordinates for euler method
+
+# use iteration in range(num_t-1) due to need of "future" force in Verlet 
+# and iterateCoordinates_Verlet; 
 for j in range(num_t):
     i = j%num_t # don't go over indices of parameterMatrix
     iterateCoordinates(i)
@@ -191,12 +251,22 @@ for j in range(num_t):
     p2.remove()
     p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i),color='r')
     p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i),color='b')
-    plt.pause(0.00005)
+    plt.pause(0.000005)
+    
+    vp1[i] = getPXvel(0,i)
+    vp2[i] = getPXvel(1,i)
     #time.sleep(0.05)
+
+
+    
 
 # Plot U
 #time = np.arange(0, num_t*timestep, timestep)
-#plt.plot(time, U)
+#plt.figure('Potential energy')
+#plt.plot(time, U,color='m',label='Potential Energy')
+#plt.plot(time, E,color='b',label='Total Energy')
+#plt.plot(time, E-U,color='g',label='Kinetic Energy')
+#leg = plt.legend(prop={'size':15},title='Energies')
 #plt.xlabel('time')
 #plt.ylabel('U')
 #plt.show()
