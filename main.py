@@ -1,3 +1,4 @@
+from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
 #import time
@@ -9,7 +10,7 @@ import matplotlib.pyplot as plt
 #sigma = 3.405 # Angstrom
 #mass = 39.948*1.66e-27 #Kg
 
-L = 10 # size of each periodic unit cell L (in units of sigma)
+L = 4 # size of each periodic unit cell L (in units of sigma)
 
 numOfParticles = 2 # 2 particles
 numOfDimensions = 3 # 3D
@@ -33,7 +34,6 @@ parameterMatrix = np.zeros((numOfParticles,numOfDimensions,2,num_t), dtype=float
 
 U = np.zeros((num_t,1), dtype=float)
 E = np.zeros((num_t,1), dtype=float)
-
 
 # Get particles positions and velocities
 # particle index p in 0,..,n-1
@@ -212,25 +212,26 @@ def iterateVelocities_Verlet(ts):
 setPXcoord(L/2,0,0)
 setPYcoord(L/3,0,0)
 setPZcoord(0,0,0)
-setPXvel(10,0,0)
-setPYvel(50,0,0)
+setPXvel(1,0,0)
+setPYvel(2.4,0,0)
 setPZvel(0,0,0)
 # Particle 2
 setPXcoord(1,1,0)
 setPYcoord(1,1,0)
 setPZcoord(0,1,0)
-setPXvel(20,1,0)
-setPYvel(-50,1,0)
+setPXvel(2,1,0)
+setPYvel(-5,1,0)
 setPZvel(0,1,0)
 
 
 ##### Simulation #####
 fig = plt.figure()
-ax = fig.add_axes([0,0,1,1])
-p1 = ax.scatter(parameterMatrix[0][0][0][0],parameterMatrix[0][1][0][0], color='r')
-p2 = ax.scatter(parameterMatrix[1][0][0][0],parameterMatrix[1][1][0][0], color='b')
+ax = fig.add_subplot(111, projection='3d')
+p1 = ax.scatter(getPXcoord(0,0),getPYcoord(0,0),getPZcoord(0,0), color='r')
+p2 = ax.scatter(getPXcoord(1,0),getPYcoord(1,0),getPZcoord(1,0), color='b')
 ax.set_xlim((0,L))
 ax.set_ylim((0,L))
+ax.set_zlim((0,L))
 plt.ion()
 plt.show()
 plt.pause(0.01)
@@ -238,6 +239,9 @@ plt.pause(0.01)
 # vp1 and vp2 to keep track of the velocities
 vp1 = np.zeros(num_t)
 vp2 = np.zeros(num_t)
+
+# keep track of particle distance, potential energy, and kinetic energy
+particleDistances = np.zeros(num_t)
 
 # use iteration in range(num_t) and iterateCoordinates for euler method
 
@@ -249,24 +253,27 @@ for j in range(num_t):
     iterateVelocities(i)
     p1.remove()
     p2.remove()
-    p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i),color='r')
-    p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i),color='b')
+    p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
+    p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
     plt.pause(0.000005)
     
     vp1[i] = getPXvel(0,i)
     vp2[i] = getPXvel(1,i)
+    particleDistances[i],a,b,c = getParticleDistance(0,1,i)
     #time.sleep(0.05)
 
 
-    
+##### Plots #########
+# Distance plot
+time = np.arange(0, num_t*timestep, timestep)
+plot_fig,a = plt.subplots(4,1)
+a[0].plot(time,particleDistances,color='r',label = 'Inter-particle distance')
+a[0].set_ylabel('Particle Distance')
+a[1].plot(time, U,color='m',label='Potential Energy')
+a[1].set_ylabel('Potential Energy')
+a[2].plot(time, E-U,color='g',label='Kinetic Energy')
+a[2].set_ylabel('Kinetic Energy')
+a[3].plot(time, E,color='b',label='Total Energy')
+a[3].set_ylabel('Total Energy')
 
-# Plot U
-#time = np.arange(0, num_t*timestep, timestep)
-#plt.figure('Potential energy')
-#plt.plot(time, U,color='m',label='Potential Energy')
-#plt.plot(time, E,color='b',label='Total Energy')
-#plt.plot(time, E-U,color='g',label='Kinetic Energy')
-#leg = plt.legend(prop={'size':15},title='Energies')
-#plt.xlabel('time')
-#plt.ylabel('U')
-#plt.show()
+plt.xlabel('time')
