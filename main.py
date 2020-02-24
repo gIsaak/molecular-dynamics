@@ -264,16 +264,19 @@ for j in range(num_t):
 
 
 ##### Plots #########
-# Distance plot
+plt.ioff()
 time = np.arange(0, num_t*timestep, timestep)
-plot_fig,a = plt.subplots(4,1)
-a[0].plot(time,particleDistances,color='r',label = 'Inter-particle distance')
-a[0].set_ylabel('Particle Distance')
-a[1].plot(time, U,color='m',label='Potential Energy')
-a[1].set_ylabel('Potential Energy')
-a[2].plot(time, E-U,color='g',label='Kinetic Energy')
-a[2].set_ylabel('Kinetic Energy')
-a[3].plot(time, E,color='b',label='Total Energy')
-a[3].set_ylabel('Total Energy')
-
-plt.xlabel('time')
+plot_fig,a = plt.subplots(2,2)
+a[0][0].plot(time,particleDistances,color='r',label = 'Inter-particle distance')
+a[0][0].set_ylabel('Particle Distance')
+a[0][0].set_xlabel('time')
+a[0][1].plot(time, U,color='m',label='Potential Energy')
+a[0][1].set_ylabel('Potential Energy')
+a[0][1].set_xlabel('time')
+a[1][0].plot(time, E-U,color='g',label='Kinetic Energy')
+a[1][0].set_ylabel('Kinetic Energy')
+a[1][0].set_xlabel('time')
+a[1][1].plot(time, E,color='b',label='Total Energy')
+a[1][1].set_ylabel('Total Energy')
+a[1][1].set_xlabel('time')
+plt.show()
