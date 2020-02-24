@@ -1,22 +1,23 @@
+from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
-import time
+#import time
 
 ##### Parameters #####
-sizeOfBox = 100 # size of each periodic unit cell L (in Angstrom)
-timestep = 1e-4 # time between iterations of Euler's method
 
-# Lennard-Jones parameters (all in SI, except length (sigma) in Angstrom)
-boltzmann = 1.38e-23
-epsilon = 119.8*boltzmann
-sigma = 7 # playing around for testing, not true value of sigma
+# Lennard-Jones parameters Argon
+#eps = 119.8 # k_b
+#sigma = 3.405 # Angstrom
+#mass = 39.948*1.66e-27 #Kg
 
-# Argon parameters (SI)
-mass = 39.948*1.66e-27
+L = 4 # size of each periodic unit cell L (in units of sigma)
 
 numOfParticles = 2 # 2 particles
-numOfDimensions = 2 # 2 dimensions
-num_t = 100 # store 100 time steps in array
+numOfDimensions = 3 # 3D
+
+num_t = 1000 # time steps
+timestep = 0.001 # time between iterations of Euler's and Verlet's method
+
 
 # Create n x d x 2 numpy array of floats "parameterMatrix" to store n particles
 # in d dimensions with 2 (position and velocity) parameters, and num_t timesteps stored.
@@ -28,177 +29,254 @@ num_t = 100 # store 100 time steps in array
 
 parameterMatrix = np.zeros((numOfParticles,numOfDimensions,2,num_t), dtype=float)
 
-def getP1Xcoord(ts):
-    return parameterMatrix[0][0][0][ts]
-def getP2Xcoord(ts):
-    return parameterMatrix[1][0][0][ts]
-def getP1Ycoord(ts):
-    return parameterMatrix[0][1][0][ts]
-def getP2Ycoord(ts):
-    return parameterMatrix[1][1][0][ts]
-def getP1Xvel(ts):
-    return parameterMatrix[0][0][1][ts]
-def getP2Xvel(ts):
-    return parameterMatrix[1][0][1][ts]
-def getP1Yvel(ts):
-    return parameterMatrix[0][1][1][ts]
-def getP2Yvel(ts):
-    return parameterMatrix[1][1][1][ts]
+# Initialize potential energy matrix U and total energy E
+# TODO maybe make matrix?
 
-def setP1Xcoord(val,ts):
-    parameterMatrix[0][0][0][ts] = val
-def setP2Xcoord(val,ts):
-    parameterMatrix[1][0][0][ts] = val
-def setP1Ycoord(val,ts):
-    parameterMatrix[0][1][0][ts] = val
-def setP2Ycoord(val,ts):
-    parameterMatrix[1][1][0][ts] = val
-def setP1Xvel(val,ts):
-    parameterMatrix[0][0][1][ts] = val
-def setP2Xvel(val,ts):
-    parameterMatrix[1][0][1][ts] = val
-def setP1Yvel(val,ts):
-    parameterMatrix[0][1][1][ts] = val
-def setP2Yvel(val,ts):
-    parameterMatrix[1][1][1][ts] = val
+U = np.zeros((num_t,1), dtype=float)
+E = np.zeros((num_t,1), dtype=float)
 
-def getdUdr(r):
-    # given a distance r, returns the derivative of the Lennard-Jones potential with respect to r evaluated at that point
-    dUdr_index = int(round(r/sizeOfBox*n))
-    return dUdr[dUdr_index]
+# Get particles positions and velocities
+# particle index p in 0,..,n-1
+def getPXcoord(p,ts):
+    return parameterMatrix[p][0][0][ts]
+def getPYcoord(p,ts):
+    return parameterMatrix[p][1][0][ts]
+def getPZcoord(p,ts):
+    return parameterMatrix[p][2][0][ts]
+def getPXvel(p,ts):
+    return parameterMatrix[p][0][1][ts]
+def getPYvel(p,ts):
+    return parameterMatrix[p][1][1][ts]
+def getPZvel(p,ts):
+    return parameterMatrix[p][2][1][ts]
 
-def getParticleDistance(ts):
-    # function that returns the minimum distance between the two particles at the given timestep "ts"
+# Set particles positions and velocities
+# particle index p in 0,..,n-1
+def setPXcoord(val,p,ts):
+    parameterMatrix[p][0][0][ts] = val
+def setPYcoord(val,p,ts):
+    parameterMatrix[p][1][0][ts] = val
+def setPZcoord(val,p,ts):
+    parameterMatrix[p][2][0][ts] = val
+def setPXvel(val,p,ts):
+    parameterMatrix[p][0][1][ts] = val
+def setPYvel(val,p,ts):
+    parameterMatrix[p][1][1][ts] = val
+def setPZvel(val,p,ts):
+    parameterMatrix[p][2][1][ts] = val
+
+def getParticleDistance(p1,p2,ts):
+    # function that returns distance between p1 and p2
+    # at the given timestep "ts"
+    # (returned as a 4-tuple: r,x1-2,y1-2,z1-2)
     # includes periodic boundary conditions
-    x_dist = abs(getP1Xcoord(ts)-getP2Xcoord(ts))
-    y_dist = abs(getP1Ycoord(ts)-getP2Ycoord(ts))
-    if x_dist > sizeOfBox/2:
-        # if the x-distance is greater than half the x-length of the box, the shortest x distance wraps over the periodic BCs
-        x_dist = sizeOfBox - x_dist
-    if y_dist > sizeOfBox/2:
-        # same reasoning as for x coordinate
-        y_dist = sizeOfBox - y_dist
+    x_dist = getPXcoord(p1,ts) - getPXcoord(p2,ts)
+    y_dist = getPYcoord(p1,ts) - getPYcoord(p2,ts)
+    z_dist = getPZcoord(p1,ts) - getPZcoord(p2,ts)
+    x_dist = (x_dist + L/2)%L - L/2
+    y_dist = (y_dist + L/2)%L - L/2
+    z_dist = (z_dist + L/2)%L - L/2
 
-    # calculate and return distance shortest distance between particles
-    return np.sqrt(x_dist**2 + y_dist**2)
-
-def getPotentialEnergy(ts):
-    # returns the potential energy (Lennard Jones) at the given timestep
-    r = getParticleDistance(ts)
-    return 4*epsilon*((sigma/r)**12-(sigma/r)**6)
+    r = np.sqrt(x_dist**2 + y_dist**2 + z_dist**2)
+    return r,x_dist,y_dist,z_dist
 
 def getTotalEnergy(ts):
-    # calculates sum of potential energy and kinetic energy at the timestep (of particles in a unit cell)
-    U = getPotentialEnergy(ts)
-    T = 1/2*mass*(getP1Xvel(ts)**2+getP1Yvel(ts)**2+getP2Xvel(ts)**2+getP2Yvel(ts)**2)
-    return U + T
+    # calculates sum of potential energy and kinetic energy at the timestep
+    # of particles in a unit cell
+    # Natural units
+    T = 0
+    for i in range(numOfParticles):
+        T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
+    E[ts] = U[ts] + T/2
 
+# TODO choose a better name
 def getForce(ts):
-    # calculates the force on each particle at a given timestep in the x and y directions (returned as a 4-tuple: f1x,f2x,f1y,f2y)
-    rel_x = getP1Xcoord(ts)-getP2Xcoord(ts)
-    if abs(rel_x) > sizeOfBox/2:
-        if rel_x < 0:
-            rel_x = sizeOfBox-abs(rel_x)
-        else:
-            rel_x = -sizeOfBox+abs(rel_x)
-    rel_y = getP1Ycoord(ts)-getP2Ycoord(ts)
-    if abs(rel_y) > sizeOfBox/2:
-        if rel_y < 0:
-            rel_y = sizeOfBox-abs(rel_y)
-        else:
-            rel_y = -sizeOfBox+abs(rel_y)
-    r = np.sqrt(rel_x**2+rel_y**2)
-    grad = getdUdr(r)
-    force_P1_X = -grad*rel_x/r
-    force_P2_X = grad*rel_x/r # change of sign from force_P1_X since forces must be equal and opposite
-    force_P1_Y = -grad*rel_y/r
-    force_P2_Y = grad*rel_y/r
-    return force_P1_X,force_P2_X,force_P1_Y,force_P2_Y
+    # calculates the force on each particle and
+    # U of the system  at a given timestep
+    # returns n x d numpy array of floats "forceMatrix" to store fx,fy,fz
+    # for each particle
+    forceMatrix = np.zeros((numOfParticles,numOfDimensions), dtype=float)
+
+    for i in range(numOfParticles):
+        j = 0
+        while j < i:
+            r,rel_x,rel_y,rel_z = getParticleDistance(i,j,ts)
+            invr6 = (1/r)**6 #precomputes (1/r)**6
+            grad = 24/r * (-2*invr6**2  + invr6)
+            # Compute forces
+            forceMatrix[i][0] = forceMatrix[i][0] - grad*rel_x/r
+            forceMatrix[i][1] = forceMatrix[i][1] - grad*rel_y/r
+            forceMatrix[i][2] = forceMatrix[i][2] - grad*rel_z/r
+            forceMatrix[j][0] = forceMatrix[j][0] + grad*rel_x/r
+            forceMatrix[j][1] = forceMatrix[j][1] + grad*rel_y/r
+            forceMatrix[j][2] = forceMatrix[j][2] + grad*rel_z/r
+            # Compute U
+            U[ts] = 4*(invr6**2 - invr6)
+
+            j += 1
+    return forceMatrix
+
 
 def iterateCoordinates(ts):
     # takes current position and velocity at timestep ts and updates particle coordinates for timestep ts+1
-    newP1Xcoord = enforcePeriodicBCs(getP1Xcoord(ts)+getP1Xvel(ts)*timestep)
-    newP1Ycoord = enforcePeriodicBCs(getP1Ycoord(ts)+getP1Yvel(ts)*timestep)
-    newP2Xcoord = enforcePeriodicBCs(getP2Xcoord(ts)+getP2Xvel(ts)*timestep)
-    newP2Ycoord = enforcePeriodicBCs(getP2Ycoord(ts)+getP2Yvel(ts)*timestep)
-    
-    if ts+1 == num_t:
+    if ts + 1 == num_t:
         next_ts = 0
     else:
-        next_ts = ts+1
-    setP1Xcoord(newP1Xcoord,next_ts)
-    setP1Ycoord(newP1Ycoord,next_ts)
-    setP2Xcoord(newP2Xcoord,next_ts)
-    setP2Ycoord(newP2Ycoord,next_ts)
+        next_ts = ts + 1
 
-def enforcePeriodicBCs(val):
+    for i in range(numOfParticles):
+        newPXcoord = fixPos(getPXcoord(i,ts) + getPXvel(i,ts)*timestep)
+        newPYcoord = fixPos(getPYcoord(i,ts) + getPYvel(i,ts)*timestep)
+        newPZcoord = fixPos(getPZcoord(i,ts) + getPZvel(i,ts)*timestep)
+
+        setPXcoord(newPXcoord,i,next_ts)
+        setPYcoord(newPYcoord,i,next_ts)
+        setPZcoord(newPZcoord,i,next_ts)
+
+def fixPos(val):
     # accepts a coordinate and makes sure the value is within the interval [0,1)
-    return val%sizeOfBox
+    return val%L
 
 def iterateVelocities(ts):
     # takes current velocity and force at timestep ts and updates particle velicities for timestep ts+1
-    fx1,fx2,fy1,fy2 = getForce(ts)
-    newP1Xvel = getP1Xvel(ts) + 1/mass*fx1*timestep 
-    newP1Yvel = getP1Yvel(ts) + 1/mass*fy1*timestep
-    newP2Xvel = getP2Xvel(ts) + 1/mass*fx2*timestep
-    newP2Yvel = getP2Yvel(ts) + 1/mass*fy2*timestep
-    
-    if ts+1 == num_t:
+    if ts + 1 == num_t:
         next_ts = 0
     else:
-        next_ts = ts+1
-    setP1Xvel(newP1Xvel,next_ts)
-    setP1Yvel(newP1Yvel,next_ts)
-    setP2Xvel(newP2Xvel,next_ts)
-    setP2Yvel(newP2Yvel,next_ts)
-    
-#### Precompute Lennard Jones force ####
+        next_ts = ts + 1
 
-# since potential is only a function of distance, we can efficiently
-# compute the potential for all possible distances (given periodic BCs),
-n = 1000 # number of discrete distances with a precomputed gradient
-r_vec = np.linspace(sizeOfBox/n,sizeOfBox,n) # 1D array of all possible distances of particles (up to some user-defined precision)
+    force = getForce(ts)
+    for i in range(numOfParticles):
+        newPXvel = getPXvel(i,ts) + force[i][0]*timestep
+        newPYvel = getPYvel(i,ts) + force[i][1]*timestep
+        newPZvel = getPZvel(i,ts) + force[i][2]*timestep
 
-# evaluate the Lennard Jones Potential on the grid
-U_lj = 4*epsilon*((sigma/r_vec)**12-(sigma/r_vec)**6)
+        setPXvel(newPXvel,i,next_ts)
+        setPYvel(newPYvel,i,next_ts)
+        setPZvel(newPZvel,i,next_ts)
+        
+# using the same iterator structure but velocity-verlet algorithm
+# ==================================
+# TO DO:      
+# ================================== 
+# take future force into account. Now when clculating the force at one time step
+# ahead we end up using the present particles position instead of the future one
+# need to implement a way that calculates the position one step ahead seperately
+# could use conditional function, open to discuss
+        
+def iterateCoordinates_Verlet(ts):
+    # takes current position, velocity and force at timestep ts and 
+    # updates particle coordinates for timestep ts+1
+    if ts + 1 == num_t:
+        next_ts = 0
+    else:
+        next_ts = ts + 1
+        
+    force = getForce(ts)
+    for i in range(numOfParticles):
+        newPXcoord = fixPos(getPXcoord(i,ts) + getPXvel(i,ts)*timestep + \
+                            0.5*force[i][0]*timestep**2)
+        newPYcoord = fixPos(getPYcoord(i,ts) + getPYvel(i,ts)*timestep + \
+                            0.5*force[i][1]*timestep**2)
+        newPZcoord = fixPos(getPZcoord(i,ts) + getPZvel(i,ts)*timestep + \
+                            0.5*force[i][0]*timestep**2)
 
-# evaluate the derivative of the Lennard Jones Potential with respect to r
-dUdr = np.gradient(U_lj,sizeOfBox/n) # access dU/dr with dUdr[distance]
+        setPXcoord(newPXcoord,i,next_ts)
+        setPYcoord(newPYcoord,i,next_ts)
+        setPZcoord(newPZcoord,i,next_ts)
+        
+def iterateVelocities_Verlet(ts):
+    # takes current velocity and force at timestep ts and ts+1
+    # and updates particle velicities for timestep ts+1
+    # changed if condition to ts+2 due to need to force at ts+1 for updating velocities
+    if ts + 2 == num_t:
+        next_ts = 0
+    else:
+        next_ts = ts + 1
+
+    force = getForce(ts)
+    # iterateCoordinates_Verlet(ts)
+    force_1 = getForce(ts+1)
+    for i in range(numOfParticles):
+        newPXvel = getPXvel(i,ts) + 0.5*timestep*(force_1[i][0] + force[i][0])
+        newPYvel = getPYvel(i,ts) + 0.5*timestep*(force_1[i][1] + force[i][0])
+        newPZvel = getPZvel(i,ts) + 0.5*timestep*(force_1[i][2] + force[i][0])
+
+        setPXvel(newPXvel,i,next_ts)
+        setPYvel(newPYvel,i,next_ts)
+        setPZvel(newPZvel,i,next_ts)
 
 ################# Begin main program ########################
 
 # set random starting point for particles
-setP1Xcoord(sizeOfBox/2,0)
-setP1Ycoord(sizeOfBox/3,0)
-setP2Xcoord(1,0)
-setP2Ycoord(1,0)
-setP1Xvel(5000,0)
-setP1Yvel(25000,0)
-setP2Xvel(10000,0)
-setP2Yvel(-5000,0)
+# Particle 1
+setPXcoord(L/2,0,0)
+setPYcoord(L/3,0,0)
+setPZcoord(0,0,0)
+setPXvel(1,0,0)
+setPYvel(2.4,0,0)
+setPZvel(0,0,0)
+# Particle 2
+setPXcoord(1,1,0)
+setPYcoord(1,1,0)
+setPZcoord(0,1,0)
+setPXvel(2,1,0)
+setPYvel(-5,1,0)
+setPZvel(0,1,0)
 
-energies = np.zeros(100,dtype=float)
 
-
+##### Simulation #####
 fig = plt.figure()
-ax = fig.add_axes([0,0,1,1])
-p1 = ax.scatter(parameterMatrix[0][0][0][0],parameterMatrix[0][1][0][0], color='r')
-p2 = ax.scatter(parameterMatrix[1][0][0][0],parameterMatrix[1][1][0][0], color='b')
-ax.set_xlim((0,sizeOfBox))
-ax.set_ylim((0,sizeOfBox))
+ax = fig.add_subplot(111, projection='3d')
+p1 = ax.scatter(getPXcoord(0,0),getPYcoord(0,0),getPZcoord(0,0), color='r')
+p2 = ax.scatter(getPXcoord(1,0),getPYcoord(1,0),getPZcoord(1,0), color='b')
+ax.set_xlim((0,L))
+ax.set_ylim((0,L))
+ax.set_zlim((0,L))
 plt.ion()
 plt.show()
-plt.pause(0.001)
+plt.pause(0.01)
 
-for j in range(100):
+# vp1 and vp2 to keep track of the velocities
+vp1 = np.zeros(num_t)
+vp2 = np.zeros(num_t)
+
+# keep track of particle distance, potential energy, and kinetic energy
+particleDistances = np.zeros(num_t)
+
+# use iteration in range(num_t) and iterateCoordinates for euler method
+
+# use iteration in range(num_t-1) due to need of "future" force in Verlet 
+# and iterateCoordinates_Verlet; 
+for j in range(num_t):
     i = j%num_t # don't go over indices of parameterMatrix
-    energies[i] = getTotalEnergy(i)
     iterateCoordinates(i)
     iterateVelocities(i)
     p1.remove()
     p2.remove()
-    p1 = ax.scatter(getP1Xcoord(i),getP1Ycoord(i),color='r')
-    p2 = ax.scatter(getP2Xcoord(i),getP2Ycoord(i),color='b')
-    plt.pause(0.001)
-    time.sleep(0.05)
+    p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
+    p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
+    plt.pause(0.000005)
     
+    vp1[i] = getPXvel(0,i)
+    vp2[i] = getPXvel(1,i)
+    particleDistances[i],a,b,c = getParticleDistance(0,1,i)
+    #time.sleep(0.05)
+
+
+##### Plots #########
+plt.ioff()
+time = np.arange(0, num_t*timestep, timestep)
+plot_fig,a = plt.subplots(2,2)
+a[0][0].plot(time,particleDistances,color='r',label = 'Inter-particle distance')
+a[0][0].set_ylabel('Particle Distance')
+a[0][0].set_xlabel('time')
+a[0][1].plot(time, U,color='m',label='Potential Energy')
+a[0][1].set_ylabel('Potential Energy')
+a[0][1].set_xlabel('time')
+a[1][0].plot(time, E-U,color='g',label='Kinetic Energy')
+a[1][0].set_ylabel('Kinetic Energy')
+a[1][0].set_xlabel('time')
+a[1][1].plot(time, E,color='b',label='Total Energy')
+a[1][1].set_ylabel('Total Energy')
+a[1][1].set_xlabel('time')
+plt.show()
