@@ -152,6 +152,137 @@ Plan for this week is to split the work like this:
 
 We plan to reach all milestones for this week by friday in order for the debugging to happen in the weekend and finalize the journal writing before monday.
 
+End of week report:
+
+As planned, Isacco converted the simulation to natural units and improved our force calculation/extensibility problems from week 1. Brennan improved the matplotlib
+simulation to work in 3 dimensions with periodic boundary conditions, and also created plots of position, energies, etc. Ludwig is healthy now, improved commenting
+of our code and prototyped new time-evolution functions in advance of week 3. The improvements were prototyped in the "future" branch and a working simulation has
+been merged to the master branch. Below, we describe in turn the milestones for the week:
+
+Derive the expression of the kinetic energy in dimensionless units, and implement them:
+
+Isacco derived the natural units and implemented them into the simulation. The calculation for the total energy becomes substantially simpler. The energies
+are calculated on-the-fly as the force between molecules is calculated at each timestep. This is done as follows:
+
+```
+def getForce(ts):
+    # calculates the force on each particle and
+    # U of the system  at a given timestep
+    # returns n x d numpy array of floats "forceMatrix" to store fx,fy,fz
+    # for each particle
+    forceMatrix = np.zeros((numOfParticles,numOfDimensions), dtype=float)
+
+    for i in range(numOfParticles):
+        j = 0
+        while j < i:
+            r,rel_x,rel_y,rel_z = getParticleDistance(i,j,ts)
+            invr6 = (1/r)**6 #precomputes (1/r)**6
+            grad = 24/r * (-2*invr6**2  + invr6)
+            # Compute forces
+            forceMatrix[i][0] = forceMatrix[i][0] - grad*rel_x/r
+            forceMatrix[i][1] = forceMatrix[i][1] - grad*rel_y/r
+            forceMatrix[i][2] = forceMatrix[i][2] - grad*rel_z/r
+            forceMatrix[j][0] = forceMatrix[j][0] + grad*rel_x/r
+            forceMatrix[j][1] = forceMatrix[j][1] + grad*rel_y/r
+            forceMatrix[j][2] = forceMatrix[j][2] + grad*rel_z/r
+            # Compute U
+            U[ts] = 4*(invr6**2 - invr6)
+
+            j += 1
+    return forceMatrix
+```
+
+The gradient of the Lennard-Jones potential is now computed analytically, and a "force matrix" is used to complete the force calculation
+between particles for an arbitrary number of particles. However, the function is currently hardcoded for 3 dimensions, so this may
+be improved in the future. We take advantage of the fact that the forces on two interacting particles in the same direction must be
+equal and opposite. The potential energy (in natural units) is updated. The total energy may be calculated as:
+
+```
+def getTotalEnergy(ts):
+    # calculates sum of potential energy and kinetic energy at the timestep
+    # of particles in a unit cell
+    # Natural units
+    T = 0
+    for i in range(numOfParticles):
+        T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
+    E[ts] = U[ts] + T/2
+```
+
+The kinetic energy may simply be calculated as (Total Energy) - (Potential Energy).
+
+Implement the minimal image convention:
+
+Isacco implemented the minimal image convention in the getParticleDistance() function:
+
+```
+def getParticleDistance(p1,p2,ts):
+    # function that returns distance between p1 and p2
+    # at the given timestep "ts"
+    # (returned as a 4-tuple: r,x1-2,y1-2,z1-2)
+    # includes periodic boundary conditions
+    x_dist = getPXcoord(p1,ts) - getPXcoord(p2,ts)
+    y_dist = getPYcoord(p1,ts) - getPYcoord(p2,ts)
+    z_dist = getPZcoord(p1,ts) - getPZcoord(p2,ts)
+    x_dist = (x_dist + L/2)%L - L/2
+    y_dist = (y_dist + L/2)%L - L/2
+    z_dist = (z_dist + L/2)%L - L/2
+
+    r = np.sqrt(x_dist**2 + y_dist**2 + z_dist**2)
+    return r,x_dist,y_dist,z_dist
+```
+
+The distance is calculated as a relative 3-tuple to particle 1's location. The formulas
+for x, y, and z distance take into account the periodic boundary conditions in a way that
+does not require any conditioning.
+
+Simulate 2 atoms in 3D space:
+
+Brennan updated the matplotlib plotting to include 3D coordinates. Currently, this is done
+by creating a matplotlib scatter plot. The positions and velocities are iterated according
+to the Euler method, and the scatter plot is updated for each timestep:
+
+```
+iterateCoordinates(i)
+iterateVelocities(i)
+p1.remove()
+p2.remove()
+p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
+p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
+plt.pause(0.000005)
+```
+
+While looping over all timesteps, the position between particles, potential energy, and
+total energy are computed on the fly in pre-allocated vectors. The kinetic energy can be
+calculated from the total and potential energies after the simulation. We set one particle
+at one corner of the box, and the other in the middle. Through trial and error of modifying
+the velocities, we found a configuration where the particles will "collide" once during the
+course of the simulation. This is seen from the plot below when the particle distance becomes
+on the order of &sigma:
+
+![alt text](img/week2/week2_distance_KE.png "Distance and Kinetic Energy")
+
+The plot of kinetic energy above shows the velocity dip when the particles are close to each
+other and changing direction. Similarly, the potential energy spikes due to the Lennard-Jones
+potential at the same timestep. The total energy, for which the starting energy is taken as the
+0, remains constant throughout the interaction as one would expect.
+
+![alt text](img/week2/week2_PE_totalenergy.png "Potential and Total Energy")
+
+In order to maintain energy conservation, we purposefully pick a conservative timestep interval of
+0.001 and initial velocities on the order of unity (in our natural units). If these values are
+significantly increased, energy is not conserved during particle collisions since the particles
+will step too close to each other and be blown apart by the rapidly increasing hard-core repulsion
+term.
+
+Future improvements:
+- There is still some hardcoding, especially in regards to fixed 3-dimensional simulation, that
+should be modified to allow different dimensionalities.
+- The code still exists in a single main.py file. This is okay for now given the modest length
+of the codebase, but separating functions into modules will be necessary for a clean final product.
+- 3D simulations on a matplotlib scatter plot are okay, but appear somewhat arbitrary as the boundaries
+of the box are not drawn and the periodic boundary conditions appear as the particles teleporting across
+the plot. More time could be invested in developing a more aesthetically pleasing canvas for displaying
+the real-time simulations.
 
 ## Week 3
 (due before 3 March)
