@@ -286,6 +286,14 @@ the real-time simulations.
 
 ## Week 3
 (due before 3 March)
+Wednesday 26 February (Group)
+Plot of Energies already done by Isacco, Ludwig and Brennan.
+
+Plan for this week is to split the work like this:
+- add force to parameterMatrix to implement the calculation of the "future" force (Isacco)
+- particle initializer and checking generalisation to simulation of many particles (Brennan)
+- compare euler and Verlet velocity algorithm with respect to energy conservation for many particles + Journal (Ludwig)
+- preparing a structure to implement all functions using different modules (Ludwig)
 
 
 ## Week 4
