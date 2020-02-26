@@ -205,9 +205,53 @@ def iterateVelocities_Verlet(ts):
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
 
+def initializeParticles(ts):
+    # creates a random position and velocity for each particle at the given
+    # timestep ts
+    #
+    # particle positions are generated to be distributed around the box such that no 2 particles
+    # begin to close to each other; this is done by slicing the box in the first
+    # dimension (L/numOfParticles) and only allowing 1 particle to exist in each slice
+    #
+    # particle velocities are chosen randomly in magnitude and direction, with
+    # the condition that no initial velocity is faster than some fraction the width of
+    # the box per timestep
+    
+    # this variable limits how fast the particles can initially move
+    # for example, 10 means that the particles can move no further than 1/10
+    # the length of the box per timestep
+    maxInitialSpeedParameter = 20
+    
+    dim_components = np.zeros((numOfDimensions,1),dtype=float)
+    
+    for i in range(numOfParticles):
+        # first generate positions in each dimension
+        dim_components = np.random.rand(numOfDimensions,1)*L # scale to sizeOfBox
+        dim_components[0] = dim_components[0]/numOfParticles/1.1 + i/L # slice in dimension 1 to separate particles initially (1.1 gives space between "sliced" regions)
+        # pass vector to method to fill parameter matrix:
+        # arguments: random vector, particle number, coord/vel, timestep
+        addToParameterMatrix(dim_components,i,0,ts)
+        
+        # next generate velocities in each dimension, limited according to maxInitialSpeedParameter above
+        dim_components = np.random.rand(numOfDimensions,1)/np.sqrt(numOfDimensions)*L/timestep/maxInitialSpeedParameter
+        addToParameterMatrix(dim_components,i,1,ts)
+
+def addToParameterMatrix(dim_components,pnum,xv,ts):
+    # treat this  as Protected method
+    #
+    # function called by initializePartciels() to load randomly generated initial
+    # positions/velocities into parameter matrix
+    
+    # TODO
+    pass
+
+
 ################# Begin main program ########################
 
-# set random starting point for particles
+##### Set initial positions/velocities for all particles ####
+
+initializeParticles(0)
+
 # Particle 1
 setPXcoord(L/2,0,0)
 setPYcoord(L/3,0,0)
