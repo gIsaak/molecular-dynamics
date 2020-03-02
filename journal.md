@@ -297,10 +297,11 @@ Plan for this week is to split the work like this:
 
 End of week report:
 
-As planned Isacco implemented the Velocity-Verlet algorithm to in addition to the Euler one.
-To calculate the velocities an timestep t the Velocity-Verlet algorithm needs the forces at timestep t and t+dt,
+As planned Isacco implemented the Velocity-Verlet algorithm to in addition to the Euler method.
+To calculate the velocities at timestep t the Velocity-Verlet algorithm needs the forces at timestep t and t+dt,
 therefore we decided to remove forceMatrix and instead save the forces at each timestep in parameterMatrix.
 To make more intuitive the way parameters are stored in parameterMatrix, we changed the name to PC3T.
+This choice makes for easier development since the name indicates the indices of the paramters we are trying to store.
 ```
 # Create n x d x 3 numpy array of floats "PC3T" to store n particles
 # P = particle, C = coordinate (x, y or z), 3 = (position,velocity, force), T = timestep
@@ -313,7 +314,6 @@ To make more intuitive the way parameters are stored in parameterMatrix, we chan
 
 PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
 ```
-This way it is easier to guess the correct indices when needed and also to debug.
 
 The algorithm itself was constructed in order to have minimal code changes from the previous implementation with
 Euler algorithm so we followed the same function structure:
@@ -368,13 +368,43 @@ from timestep ts. This way we avoid redundant calculations, but, differently fro
 ```
 getForce(0)
 ```
-As this solution is prone to bugs, we intend to englobe this into an initialization routine for initial position and velocities, which will be one of the goals for next week.
+As this solution is prone to bugs, we intend to implement an initialization routine for initial position and velocities, which will be one of the goals for next week.
+This function has been prototyped by Brennan and already works for randomly placing several particles at reasonable positions/velocities in the box. This can be adapted
+for particle initialization required in future weeks.
 
-We studied the energy behaviour for the two algorithms. We chose to do this in a simple setup in order to have a clearer understanding of the behaviours of the system: two particles, initially at rest.
-Nevertheless, the plots clearly show differences: Euler's algorithm presents an increasing trend in energy while Velocity-Verlet behaves in a more stable way.
+We studied the energy behaviour for the two algorithms. We chose to do this in a simple setup in order to have a clearer understanding of the behaviours of the system: two particles, initially at rest,
+are placed close together in the box and their motion oscillates along one axis of the box.
+While oscillation is present in the total energy as plotted for both time-evolution algorithms, the plots clearly show an important difference:
+Euler's algorithm presents an increasing trend in energy (see first image below) while Velocity-Verlet maintains a constant average energy over time (second image).
 
 ![alt text](img/week3/euler_2p.png "Euler")
 ![alt text](img/week3/verlet_2p.png "Velocity-Verlet")
+
+There are questions we would still like to answer about the algorithm, especially in regards to the spiking of energy seemed to be caused by a combination of
+particle collisions and periodic boundary conditions. When the simulation is visualized in the matplotlib scatter plot,
+the particle behaviour looks fine (provided particles do not start too close/too fast such that the jumps in energy cascade).
+However, we would like to keep the total energy of the system to be as smooth as possible.
+
+Brennan made the minor fixes required to extend the program to more than 2 particles. Although this had largely been accounted for during the first
+prototype, some hardcoded two's were removed and the visual simulation was made to work with multiple particles. The scatter plot can accomodate plenty
+of particles in a large box now:
+
+![alt text](img/week3/multiple_particles.png "Many particles")
+
+Some other small improvements were made by Brennan and Ludwig which make performing simulations easier:
+- We added the ability to more intuitively change timestep/duration of the simulation.
+- Plotting is automatically extended to multiple particles
+- Plotting can be toggled on/off, and the plotting frequency can now be changed. Since drawing is time-consuming,
+this allows us to still view the simulations while they run for fine-grain timesteps without taking a long time.
+
+Several other improvements to the code that we would also like to keep in mind:
+- Hardcoding is required to switch between simulation algorithms. This should simply be a user-defined global flag
+- Along the same lines, the module is still all sitting in a main.py. A user-facing script should be made to call on
+on a "simulation" module which is friendlier to use.
+- Currently, the positions/velocities/forces for all timesteps are stored. A very simple fix is implementing
+a proper circular-overwrite capability that uses a smaller matrix so that memory isn't wasted. Instead,
+properly defined vectors can store quantities we would like to track over the whole simulation, such as
+total energy. This should be an easy fix.
 
 ## Week 4
 (due before 10 March)
