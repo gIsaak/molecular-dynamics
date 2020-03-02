@@ -104,7 +104,7 @@ def getTotalEnergy(ts):
     for i in range(numOfParticles):
         T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
     E[ts] = U[ts] + T/2
-    
+
 def getKineticEnergy(ts):
     KE = 0
     for i in range(numOfParticles):
@@ -228,14 +228,14 @@ def initializeParticles(ts):
     # particle velocities are chosen randomly in magnitude and direction, with
     # the condition that no initial velocity is faster than some fraction the width of
     # the box per timestep
-    
+
     # this variable limits how fast the particles can initially move
     # for example, 10 means that the particles can move no further than 1/10
     # the length of the box per timestep
     maxInitialSpeedParameter = 50
-    
+
     dim_components = np.zeros((numOfDimensions,1),dtype=float)
-    
+
     for i in range(0,numOfParticles):
         # first generate positions in each dimension
         dim_components = np.random.rand(numOfDimensions,1)*L # scale to sizeOfBox
@@ -243,7 +243,7 @@ def initializeParticles(ts):
         # pass vector to method to fill parameter matrix:
         # arguments: random vector, particle number, coord/vel, timestep
         addToParameterMatrix(dim_components,i,0,ts)
-        
+
         # next generate velocities in each dimension, limited according to maxInitialSpeedParameter above
         dim_components = np.random.rand(numOfDimensions,1)/np.sqrt(numOfDimensions)*L/timestep/maxInitialSpeedParameter
         # scale velocities to be either positive or negative
@@ -255,10 +255,10 @@ def addToParameterMatrix(dim_components,pnum,xv,ts):
     #
     # function called by initializePartciels() to load randomly generated initial
     # positions/velocities into parameter matrix
-    
+
     if xv == 0:
         # load positions
-        for d in range(0,len(dim_components)):  
+        for d in range(0,len(dim_components)):
             setPncoord(dim_components[d],d,pnum,ts)
     elif xv == 1:
         # load velocities
@@ -320,19 +320,19 @@ particleDistances = np.zeros(num_t)
 
 # REMOVE THIS FOR EULER METHOD
 # Get forces for initial positions
-#getForce(0)
+getForce(0)
 
 for j in range(num_t-1):
     i = j%(num_t-1) # don't go over indices of PC3
 
     #Euler
-    iterateCoordinates(i)
-    iterateVelocities(i)
+    #iterateCoordinates(i)
+    #iterateVelocities(i)
 
     #Velocity-Verlet
-    #iterateCoordinates_Verlet(i)
-    #iterateVelocities_Verlet(i)
-    
+    iterateCoordinates_Verlet(i)
+    iterateVelocities_Verlet(i)
+
     getTotalEnergy(j)
     getKineticEnergy(j)
 
@@ -343,7 +343,7 @@ for j in range(num_t-1):
                 colour = colours[p%7]
                 scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
             plt.pause(0.000005)
-    
+
     #p1.remove()
     #p2.remove()
     #p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
@@ -359,7 +359,7 @@ for j in range(num_t-1):
 plt.ioff()
 time = np.arange(0, num_t*timestep, timestep)
 plot_fig,a = plt.subplots(2,2)
-a[0][0].plot(time,particleDistances,color='r',label = 'Inter-particle distance')
+a[0][0].plot(time[0:-2],particleDistances[0:-2],color='r',label = 'Inter-particle distance')
 a[0][0].set_ylabel('Particle Distance')
 a[0][0].set_xlabel('time')
 a[0][1].plot(time[0:-2], U[0:-2],color='m',label='Potential Energy')
@@ -371,6 +371,14 @@ a[1][0].set_xlabel('time')
 a[1][1].plot(time[0:-2], U[0:-2]+T[0:-2],color='b',label='Total Energy')
 a[1][1].set_ylabel('Total Energy')
 a[1][1].set_xlabel('time')
+a[0][0].grid()
+a[0][1].grid()
+a[1][0].grid()
+a[1][1].grid()
+# Euler
+#plot_fig.suptitle('Euler - {} particles, dt = {}'.format(numOfParticles,timestep), size = 14)
+# Verlet
+plot_fig.suptitle('Velocity-Verlet - {} particles, dt = {}'.format(numOfParticles,timestep), size = 14)
 plt.show()
 
 print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
