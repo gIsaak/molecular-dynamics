@@ -20,8 +20,13 @@ numOfDimensions = 3 # 3D
 num_t = 20000
 timestep = 0.001
 
-plotting = False
+# Turn plotting on (True) or off (False)
+plotting = True
+# Set how many timesteps pass before the plot is updated (speeds up simulation with larger values)
 plot_counter = 4
+
+# turn off auto-initialization of particles to revert back to a two-particle "debug" mode
+two_particle_test = True
 
 
 # Create n x d x 3 numpy array of floats "PC3T" to store n particles
@@ -269,22 +274,24 @@ def addToParameterMatrix(dim_components,pnum,xv,ts):
 ################# Begin main program ########################
 
 ##### Set initial positions/velocities for all particles ####
-
-#initializeParticles(0)
-            # Particle 1
-setPXcoord(L/2,0,0)
-setPYcoord(L/2,0,0)
-setPZcoord(0,0,0)
-setPXvel(1,0,0)
-setPYvel(0,0,0)
-setPZvel(0,0,0)
-# Particle 2
-setPXcoord(L/2-1,1,0)
-setPYcoord(L/2,1,0)
-setPZcoord(0,1,0)
-setPXvel(0,1,0)
-setPYvel(0,1,0)
-setPZvel(0,1,0)
+            
+if two_particle_test == True:
+    # Particle 1
+    setPXcoord(L/2,0,0)
+    setPYcoord(L/2,0,0)
+    setPZcoord(0,0,0)
+    setPXvel(1,0,0)
+    setPYvel(0,0,0)
+    setPZvel(0,0,0)
+    # Particle 2
+    setPXcoord(L/2-1,1,0)
+    setPYcoord(L/2,1,0)
+    setPZcoord(0,1,0)
+    setPXvel(0,1,0)
+    setPYvel(0,1,0)
+    setPZvel(0,1,0)
+else:
+    initializeParticles(0)
 
 
 ##### Simulation #####
@@ -381,4 +388,4 @@ a[1][1].grid()
 plot_fig.suptitle('Velocity-Verlet - {} particles, dt = {}'.format(numOfParticles,timestep), size = 14)
 plt.show()
 
-print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
+#print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
