@@ -4,24 +4,24 @@
 
 In this journal you will document your progress of the project, making use of the weekly milestones.
 
-Every week you should 
+Every week you should
 
-1. write down **on Wednesday** a short plan (bullet list is sufficient) of how you want to 
-   reach the weekly milestones. Think about how to distribute work in the group, 
-   what pieces of code functionality need to be implemented. 
+1. write down **on Wednesday** a short plan (bullet list is sufficient) of how you want to
+   reach the weekly milestones. Think about how to distribute work in the group,
+   what pieces of code functionality need to be implemented.
 2. write about your progress **before** the Tuesday in the next week with respect to the milestones.
    Substantiate your progress with links to code, pictures or test results. Reflect on the
    relation to your original plan.
 
-We will give feedback on your progress on Tuesday before the following lecture. Consult the 
-[grading scheme](https://computationalphysics.quantumtinkerer.tudelft.nl/proj1-moldyn-grading/) 
+We will give feedback on your progress on Tuesday before the following lecture. Consult the
+[grading scheme](https://computationalphysics.quantumtinkerer.tudelft.nl/proj1-moldyn-grading/)
 for details how the journal enters your grade.
 
-Note that the file format of the journal is *markdown*. This is a flexible and easy method of 
-converting text to HTML. 
-Documentation of the syntax of markdown can be found 
-[here](https://docs.gitlab.com/ee/user/markdown.html#gfm-extends-standard-markdown). 
-You will find how to include [links](https://docs.gitlab.com/ee/user/markdown.html#links) and 
+Note that the file format of the journal is *markdown*. This is a flexible and easy method of
+converting text to HTML.
+Documentation of the syntax of markdown can be found
+[here](https://docs.gitlab.com/ee/user/markdown.html#gfm-extends-standard-markdown).
+You will find how to include [links](https://docs.gitlab.com/ee/user/markdown.html#links) and
 [images](https://docs.gitlab.com/ee/user/markdown.html#images) particularly
 useful.
 
@@ -144,7 +144,7 @@ by something less hacky. It would be nice to have something which we could easil
 ## Week 2
 (due before 25 February)
 Wednesday 19 February (Group)
-Conversion to natural units was already by Isacco. 
+Conversion to natural units was already by Isacco.
 Plan for this week is to split the work like this:
 - Brennan will work on the simulation in 3D and producing the plots
 - Isacco will finish the computation of energies and split functions into more logical modules
@@ -295,6 +295,86 @@ Plan for this week is to split the work like this:
 - compare euler and Verlet velocity algorithm with respect to energy conservation for many particles + Journal (Ludwig)
 - preparing a structure to implement all functions using different modules (Ludwig)
 
+End of week report:
+
+As planned Isacco implemented the Velocity-Verlet algorithm to in addition to the Euler one.
+To calculate the velocities an timestep t the Velocity-Verlet algorithm needs the forces at timestep t and t+dt,
+therefore we decided to remove forceMatrix and instead save the forces at each timestep in parameterMatrix.
+To make more intuitive the way parameters are stored in parameterMatrix, we changed the name to PC3T.
+```
+# Create n x d x 3 numpy array of floats "PC3T" to store n particles
+# P = particle, C = coordinate (x, y or z), 3 = (position,velocity, force), T = timestep
+# in d dimensions with 3 (position, velocity and force) parameters, and num_t timesteps stored.
+
+# For example, access particle 2's position in the y-direction at time_step=0 as
+# PC3T[1][1][0][0]
+# Access particle 1's momentum in the x-direction at time_step=1 as
+# PC3T[0][0][1][1]
+
+PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
+```
+This way it is easier to guess the correct indices when needed and also to debug.
+
+The algorithm itself was constructed in order to have minimal code changes from the previous implementation with
+Euler algorithm so we followed the same function structure:
+```
+def iterateCoordinates_Verlet(ts):
+    # takes current position, velocity and force at timestep ts and
+    # updates particle coordinates for timestep ts+1
+    if ts + 1 == num_t:
+        next_ts = 0
+    else:
+        next_ts = ts + 1
+    # To avoid redundant computations getForce is only called once per timestep in
+    # iterateVelocities_Verlet
+    #getForce(ts)
+    for i in range(numOfParticles):
+        newPXcoord = (getPXcoord(i,ts) + getPXvel(i,ts)*timestep + \
+                            0.5*PC3T[i][0][2][ts]*timestep**2)%L
+        newPYcoord = (getPYcoord(i,ts) + getPYvel(i,ts)*timestep + \
+                            0.5*PC3T[i][1][2][ts]*timestep**2)%L
+        newPZcoord = (getPZcoord(i,ts) + getPZvel(i,ts)*timestep + \
+                            0.5*PC3T[i][2][2][ts]*timestep**2)%L
+
+        setPXcoord(newPXcoord,i,next_ts)
+        setPYcoord(newPYcoord,i,next_ts)
+        setPZcoord(newPZcoord,i,next_ts)
+
+def iterateVelocities_Verlet(ts):
+    # takes current velocity and force at timestep ts and ts+1
+    # and updates particle velicities for timestep ts+1
+    # changed if condition to ts+2 due to need to force at ts+1 for updating velocities
+    if ts + 1 == num_t:
+        next_ts = 0
+    else:
+        next_ts = ts + 1
+
+    # Position at time ts+1 should already be stored in memory by previous call of
+    # iterateCoordinates_Verlet(ts)
+
+    # Get force at time ts+1
+    getForce(ts+1)
+    for i in range(numOfParticles):
+        newPXvel = getPXvel(i,ts) + 0.5*timestep*(PC3T[i][0][2][ts] + PC3T[i][0][2][ts+1])
+        newPYvel = getPYvel(i,ts) + 0.5*timestep*(PC3T[i][1][2][ts] + PC3T[i][1][2][ts+1])
+        newPZvel = getPZvel(i,ts) + 0.5*timestep*(PC3T[i][2][2][ts] + PC3T[i][2][2][ts+1])
+
+        setPXvel(newPXvel,i,next_ts)
+        setPYvel(newPYvel,i,next_ts)
+        setPZvel(newPZvel,i,next_ts)
+```
+As we can see from the code example the forces at timestep ts+1 are assumed to be already computed
+from timestep ts. This way we avoid redundant calculations, but, differently from the Euler case, the forces must be initialized before the simulation starts.
+```
+getForce(0)
+```
+As this solution is prone to bugs, we intend to englobe this into an initialization routine for initial position and velocities, which will be one of the goals for next week.
+
+We studied the energy behaviour for the two algorithms. We chose to do this in a simple setup in order to have a clearer understanding of the behaviours of the system: two particles, initially at rest.
+Nevertheless, the plots clearly show differences: Euler's algorithm presents an increasing trend in energy while Velocity-Verlet behaves in a more stable way.
+
+![alt text](img/week3/euler_2p.png "Euler")
+![alt text](img/week3/verlet_2p.png "Velocity-Verlet")
 
 ## Week 4
 (due before 10 March)
