@@ -16,9 +16,12 @@ numOfParticles = 2 # 2 particles
 numOfDimensions = 3 # 3D
 
 
-Total_time = 10
-num_t = 100000
-timestep = Total_time/num_t
+#Total_time = 500*0.001
+num_t = 20000
+timestep = 0.001
+
+plotting = False
+plot_counter = 4
 
 
 # Create n x d x 3 numpy array of floats "PC3T" to store n particles
@@ -270,35 +273,36 @@ def addToParameterMatrix(dim_components,pnum,xv,ts):
 #initializeParticles(0)
             # Particle 1
 setPXcoord(L/2,0,0)
-setPYcoord(L/3,0,0)
+setPYcoord(L/2,0,0)
 setPZcoord(0,0,0)
 setPXvel(1,0,0)
-setPYvel(2.4,0,0)
+setPYvel(0,0,0)
 setPZvel(0,0,0)
 # Particle 2
-setPXcoord(1,1,0)
-setPYcoord(1,1,0)
+setPXcoord(L/2-1,1,0)
+setPYcoord(L/2,1,0)
 setPZcoord(0,1,0)
-setPXvel(2,1,0)
-setPYvel(-5,1,0)
+setPXvel(0,1,0)
+setPYvel(0,1,0)
 setPZvel(0,1,0)
 
 
 ##### Simulation #####
 
-#fig = plt.figure()
-#ax = fig.add_subplot(111, projection='3d')
-#scatterPoints = [] # hold scatter plot data for each particle
-#colours = ['b','g','r','c','m','y','k','w']
-#for p in range(0,numOfParticles):
-#    colour = colours[p%7]
-#    scatterPoints.append(ax.scatter(getPXcoord(p,0),getPYcoord(p,0),getPZcoord(p,0),color=colour))
-#ax.set_xlim((0,L))
-#ax.set_ylim((0,L))
-#ax.set_zlim((0,L))
-#plt.ion()
-#plt.show()
-#plt.pause(0.01)
+if plotting == True:
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    scatterPoints = [] # hold scatter plot data for each particle
+    colours = ['b','g','r','c','m','y','k','w']
+    for p in range(0,numOfParticles):
+        colour = colours[p%7]
+        scatterPoints.append(ax.scatter(getPXcoord(p,0),getPYcoord(p,0),getPZcoord(p,0),color=colour))
+    ax.set_xlim((0,L))
+    ax.set_ylim((0,L))
+    ax.set_zlim((0,L))
+    plt.ion()
+    plt.show()
+    plt.pause(0.01)
 
 # vp1 and vp2 to keep track of the velocities
 vp1 = np.zeros(num_t)
@@ -331,12 +335,14 @@ for j in range(num_t-1):
     
     getTotalEnergy(j)
     getKineticEnergy(j)
-#
-#    for p in range(len(scatterPoints)):
-#        scatterPoints[p].remove()
-#        colour = colours[p%7]
-#        scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
-#    plt.pause(0.000005)
+
+    if plotting == True:
+        if j%plot_counter == 0:
+            for p in range(len(scatterPoints)):
+                scatterPoints[p].remove()
+                colour = colours[p%7]
+                scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
+            plt.pause(0.000005)
     
     #p1.remove()
     #p2.remove()
