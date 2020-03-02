@@ -10,60 +10,80 @@ import matplotlib.pyplot as plt
 #sigma = 3.405 # Angstrom
 #mass = 39.948*1.66e-27 #Kg
 
-L = 4 # size of each periodic unit cell L (in units of sigma)
+L = 5 # size of each periodic unit cell L (in units of sigma)
 
 numOfParticles = 2 # 2 particles
 numOfDimensions = 3 # 3D
 
-num_t = 1000 # time steps
-timestep = 0.001 # time between iterations of Euler's and Verlet's method
+
+#Total_time = 500*0.001
+num_t = 20000
+timestep = 0.001
+
+# Turn plotting on (True) or off (False)
+plotting = True
+# Set how many timesteps pass before the plot is updated (speeds up simulation with larger values)
+plot_counter = 4
+
+# turn off auto-initialization of particles to revert back to a two-particle "debug" mode
+two_particle_test = True
 
 
-# Create n x d x 2 numpy array of floats "parameterMatrix" to store n particles
-# in d dimensions with 2 (position and velocity) parameters, and num_t timesteps stored.
+# Create n x d x 3 numpy array of floats "PC3T" to store n particles
+# P = particle, C = coordinate (x, y or z), 3 = (position,velocity, force), T = timestep
+# in d dimensions with 3 (position, velocity and force) parameters, and num_t timesteps stored.
 
 # For example, access particle 2's position in the y-direction at time_step=0 as
-# parameterMatrix[1][1][0][0]
+# PC3T[1][1][0][0]
 # Access particle 1's momentum in the x-direction at time_step=1 as
-# parameterMatrix[0][0][1][1]
+# PC3T[0][0][1][1]
 
-parameterMatrix = np.zeros((numOfParticles,numOfDimensions,2,num_t), dtype=float)
+PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
+
 
 # Initialize potential energy matrix U and total energy E
-# TODO maybe make matrix?
+# for tracking potential and total energy at each timestep
 
 U = np.zeros((num_t,1), dtype=float)
 E = np.zeros((num_t,1), dtype=float)
+T = np.zeros((num_t,1), dtype=float)
 
 # Get particles positions and velocities
 # particle index p in 0,..,n-1
 def getPXcoord(p,ts):
-    return parameterMatrix[p][0][0][ts]
+    return PC3T[p][0][0][ts]
 def getPYcoord(p,ts):
-    return parameterMatrix[p][1][0][ts]
+    return PC3T[p][1][0][ts]
 def getPZcoord(p,ts):
-    return parameterMatrix[p][2][0][ts]
+    return PC3T[p][2][0][ts]
 def getPXvel(p,ts):
-    return parameterMatrix[p][0][1][ts]
+    return PC3T[p][0][1][ts]
 def getPYvel(p,ts):
-    return parameterMatrix[p][1][1][ts]
+    return PC3T[p][1][1][ts]
 def getPZvel(p,ts):
-    return parameterMatrix[p][2][1][ts]
+    return PC3T[p][2][1][ts]
 
 # Set particles positions and velocities
 # particle index p in 0,..,n-1
 def setPXcoord(val,p,ts):
-    parameterMatrix[p][0][0][ts] = val
+    PC3T[p][0][0][ts] = val
 def setPYcoord(val,p,ts):
-    parameterMatrix[p][1][0][ts] = val
+    PC3T[p][1][0][ts] = val
 def setPZcoord(val,p,ts):
-    parameterMatrix[p][2][0][ts] = val
+    PC3T[p][2][0][ts] = val
+def setPncoord(val,d,p,ts):
+    # set coordinate for arbitrary dimension
+    PC3T[p][d][0][ts] = val
 def setPXvel(val,p,ts):
-    parameterMatrix[p][0][1][ts] = val
+    PC3T[p][0][1][ts] = val
 def setPYvel(val,p,ts):
-    parameterMatrix[p][1][1][ts] = val
+    PC3T[p][1][1][ts] = val
 def setPZvel(val,p,ts):
-    parameterMatrix[p][2][1][ts] = val
+    PC3T[p][2][1][ts] = val
+def setPnvel(val,d,p,ts):
+    # set velocity for arbitrary dimension
+    PC3T[p][d][1][ts] = val
+
 
 def getParticleDistance(p1,p2,ts):
     # function that returns distance between p1 and p2
@@ -80,6 +100,7 @@ def getParticleDistance(p1,p2,ts):
     r = np.sqrt(x_dist**2 + y_dist**2 + z_dist**2)
     return r,x_dist,y_dist,z_dist
 
+
 def getTotalEnergy(ts):
     # calculates sum of potential energy and kinetic energy at the timestep
     # of particles in a unit cell
@@ -89,13 +110,16 @@ def getTotalEnergy(ts):
         T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
     E[ts] = U[ts] + T/2
 
-# TODO choose a better name
+def getKineticEnergy(ts):
+    KE = 0
+    for i in range(numOfParticles):
+        KE = 0.5*(KE + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2)
+    T[ts] = KE
+
+
 def getForce(ts):
     # calculates the force on each particle and
     # U of the system  at a given timestep
-    # returns n x d numpy array of floats "forceMatrix" to store fx,fy,fz
-    # for each particle
-    forceMatrix = np.zeros((numOfParticles,numOfDimensions), dtype=float)
 
     for i in range(numOfParticles):
         j = 0
@@ -104,19 +128,17 @@ def getForce(ts):
             invr6 = (1/r)**6 #precomputes (1/r)**6
             grad = 24/r * (-2*invr6**2  + invr6)
             # Compute forces
-            forceMatrix[i][0] = forceMatrix[i][0] - grad*rel_x/r
-            forceMatrix[i][1] = forceMatrix[i][1] - grad*rel_y/r
-            forceMatrix[i][2] = forceMatrix[i][2] - grad*rel_z/r
-            forceMatrix[j][0] = forceMatrix[j][0] + grad*rel_x/r
-            forceMatrix[j][1] = forceMatrix[j][1] + grad*rel_y/r
-            forceMatrix[j][2] = forceMatrix[j][2] + grad*rel_z/r
+            PC3T[i][0][2][ts] = PC3T[i][0][2][ts] - grad*rel_x/r  #fx particle i
+            PC3T[i][1][2][ts] = PC3T[i][1][2][ts] - grad*rel_y/r  #fy particle i
+            PC3T[i][2][2][ts] = PC3T[i][2][2][ts] - grad*rel_z/r  #fz particle i
+            PC3T[j][0][2][ts] = PC3T[j][0][2][ts] + grad*rel_x/r  #fx particle j
+            PC3T[j][1][2][ts] = PC3T[j][1][2][ts] + grad*rel_y/r  #fy particle j
+            PC3T[j][2][2][ts] = PC3T[j][2][2][ts] + grad*rel_z/r  #fz particle j
+            j += 1
             # Compute U
             U[ts] = 4*(invr6**2 - invr6)
 
-            j += 1
-    return forceMatrix
-
-
+# Euler algorithm
 def iterateCoordinates(ts):
     # takes current position and velocity at timestep ts and updates particle coordinates for timestep ts+1
     if ts + 1 == num_t:
@@ -125,18 +147,16 @@ def iterateCoordinates(ts):
         next_ts = ts + 1
 
     for i in range(numOfParticles):
-        newPXcoord = fixPos(getPXcoord(i,ts) + getPXvel(i,ts)*timestep)
-        newPYcoord = fixPos(getPYcoord(i,ts) + getPYvel(i,ts)*timestep)
-        newPZcoord = fixPos(getPZcoord(i,ts) + getPZvel(i,ts)*timestep)
+        newPXcoord = (getPXcoord(i,ts) + getPXvel(i,ts)*timestep)%L
+        newPYcoord = (getPYcoord(i,ts) + getPYvel(i,ts)*timestep)%L
+        newPZcoord = (getPZcoord(i,ts) + getPZvel(i,ts)*timestep)%L
 
         setPXcoord(newPXcoord,i,next_ts)
         setPYcoord(newPYcoord,i,next_ts)
         setPZcoord(newPZcoord,i,next_ts)
 
-def fixPos(val):
-    # accepts a coordinate and makes sure the value is within the interval [0,1)
-    return val%L
 
+# Euler algorithm
 def iterateVelocities(ts):
     # takes current velocity and force at timestep ts and updates particle velicities for timestep ts+1
     if ts + 1 == num_t:
@@ -144,97 +164,152 @@ def iterateVelocities(ts):
     else:
         next_ts = ts + 1
 
-    force = getForce(ts)
+    getForce(ts)
     for i in range(numOfParticles):
-        newPXvel = getPXvel(i,ts) + force[i][0]*timestep
-        newPYvel = getPYvel(i,ts) + force[i][1]*timestep
-        newPZvel = getPZvel(i,ts) + force[i][2]*timestep
+        newPXvel = getPXvel(i,ts) + PC3T[i][0][2][ts]*timestep
+        newPYvel = getPYvel(i,ts) + PC3T[i][1][2][ts]*timestep
+        newPZvel = getPZvel(i,ts) + PC3T[i][2][2][ts]*timestep
 
         setPXvel(newPXvel,i,next_ts)
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
-        
-# using the same iterator structure but velocity-verlet algorithm
-# ==================================
-# TO DO:      
-# ================================== 
-# take future force into account. Now when clculating the force at one time step
-# ahead we end up using the present particles position instead of the future one
-# need to implement a way that calculates the position one step ahead seperately
-# could use conditional function, open to discuss
-        
+
+
+# Verlet algorithm
 def iterateCoordinates_Verlet(ts):
-    # takes current position, velocity and force at timestep ts and 
+    # takes current position, velocity and force at timestep ts and
     # updates particle coordinates for timestep ts+1
     if ts + 1 == num_t:
         next_ts = 0
     else:
         next_ts = ts + 1
-        
-    force = getForce(ts)
+    # To avoid redundant computations getForce is only called once per timestep in
+    # iterateVelocities_Verlet
+    #getForce(ts)
     for i in range(numOfParticles):
-        newPXcoord = fixPos(getPXcoord(i,ts) + getPXvel(i,ts)*timestep + \
-                            0.5*force[i][0]*timestep**2)
-        newPYcoord = fixPos(getPYcoord(i,ts) + getPYvel(i,ts)*timestep + \
-                            0.5*force[i][1]*timestep**2)
-        newPZcoord = fixPos(getPZcoord(i,ts) + getPZvel(i,ts)*timestep + \
-                            0.5*force[i][0]*timestep**2)
+        newPXcoord = (getPXcoord(i,ts) + getPXvel(i,ts)*timestep + \
+                            0.5*PC3T[i][0][2][ts]*timestep**2)%L
+        newPYcoord = (getPYcoord(i,ts) + getPYvel(i,ts)*timestep + \
+                            0.5*PC3T[i][1][2][ts]*timestep**2)%L
+        newPZcoord = (getPZcoord(i,ts) + getPZvel(i,ts)*timestep + \
+                            0.5*PC3T[i][2][2][ts]*timestep**2)%L
 
         setPXcoord(newPXcoord,i,next_ts)
         setPYcoord(newPYcoord,i,next_ts)
         setPZcoord(newPZcoord,i,next_ts)
-        
+
+# Verlet algorithm
 def iterateVelocities_Verlet(ts):
     # takes current velocity and force at timestep ts and ts+1
     # and updates particle velicities for timestep ts+1
     # changed if condition to ts+2 due to need to force at ts+1 for updating velocities
-    if ts + 2 == num_t:
+    if ts + 1 == num_t:
         next_ts = 0
     else:
         next_ts = ts + 1
 
-    force = getForce(ts)
+    # Position at time ts+1 should already be stored in memory by previous call of
     # iterateCoordinates_Verlet(ts)
-    force_1 = getForce(ts+1)
+
+    # Get force at time ts+1
+    getForce(ts+1)
     for i in range(numOfParticles):
-        newPXvel = getPXvel(i,ts) + 0.5*timestep*(force_1[i][0] + force[i][0])
-        newPYvel = getPYvel(i,ts) + 0.5*timestep*(force_1[i][1] + force[i][0])
-        newPZvel = getPZvel(i,ts) + 0.5*timestep*(force_1[i][2] + force[i][0])
+        newPXvel = getPXvel(i,ts) + 0.5*timestep*(PC3T[i][0][2][ts] + PC3T[i][0][2][ts+1])
+        newPYvel = getPYvel(i,ts) + 0.5*timestep*(PC3T[i][1][2][ts] + PC3T[i][1][2][ts+1])
+        newPZvel = getPZvel(i,ts) + 0.5*timestep*(PC3T[i][2][2][ts] + PC3T[i][2][2][ts+1])
 
         setPXvel(newPXvel,i,next_ts)
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
 
+def initializeParticles(ts):
+    # creates a random position and velocity for each particle at the given
+    # timestep ts
+    #
+    # particle positions are generated to be distributed around the box such that no 2 particles
+    # begin to close to each other; this is done by slicing the box in the first
+    # dimension (L/numOfParticles) and only allowing 1 particle to exist in each slice
+    #
+    # particle velocities are chosen randomly in magnitude and direction, with
+    # the condition that no initial velocity is faster than some fraction the width of
+    # the box per timestep
+
+    # this variable limits how fast the particles can initially move
+    # for example, 10 means that the particles can move no further than 1/10
+    # the length of the box per timestep
+    maxInitialSpeedParameter = 50
+
+    dim_components = np.zeros((numOfDimensions,1),dtype=float)
+
+    for i in range(0,numOfParticles):
+        # first generate positions in each dimension
+        dim_components = np.random.rand(numOfDimensions,1)*L # scale to sizeOfBox
+        dim_components[0] = dim_components[0]/numOfParticles/1.1 + i/L # slice in dimension 1 to separate particles initially (1.1 gives space between "sliced" regions)
+        # pass vector to method to fill parameter matrix:
+        # arguments: random vector, particle number, coord/vel, timestep
+        addToParameterMatrix(dim_components,i,0,ts)
+
+        # next generate velocities in each dimension, limited according to maxInitialSpeedParameter above
+        dim_components = np.random.rand(numOfDimensions,1)/np.sqrt(numOfDimensions)*L/timestep/maxInitialSpeedParameter
+        # scale velocities to be either positive or negative
+        dim_components = dim_components*2 - L/timestep/maxInitialSpeedParameter/np.sqrt(numOfDimensions)
+        addToParameterMatrix(dim_components,i,1,ts)
+
+def addToParameterMatrix(dim_components,pnum,xv,ts):
+    # treat this  as Protected method
+    #
+    # function called by initializePartciels() to load randomly generated initial
+    # positions/velocities into parameter matrix
+
+    if xv == 0:
+        # load positions
+        for d in range(0,len(dim_components)):
+            setPncoord(dim_components[d],d,pnum,ts)
+    elif xv == 1:
+        # load velocities
+        for d in range(0,len(dim_components)):
+            setPnvel(dim_components[d],d,pnum,ts)
+
+
 ################# Begin main program ########################
 
-# set random starting point for particles
-# Particle 1
-setPXcoord(L/2,0,0)
-setPYcoord(L/3,0,0)
-setPZcoord(0,0,0)
-setPXvel(1,0,0)
-setPYvel(2.4,0,0)
-setPZvel(0,0,0)
-# Particle 2
-setPXcoord(1,1,0)
-setPYcoord(1,1,0)
-setPZcoord(0,1,0)
-setPXvel(2,1,0)
-setPYvel(-5,1,0)
-setPZvel(0,1,0)
+##### Set initial positions/velocities for all particles ####
+            
+if two_particle_test == True:
+    # Particle 1
+    setPXcoord(L/2,0,0)
+    setPYcoord(L/2,0,0)
+    setPZcoord(0,0,0)
+    setPXvel(1,0,0)
+    setPYvel(0,0,0)
+    setPZvel(0,0,0)
+    # Particle 2
+    setPXcoord(L/2-1,1,0)
+    setPYcoord(L/2,1,0)
+    setPZcoord(0,1,0)
+    setPXvel(0,1,0)
+    setPYvel(0,1,0)
+    setPZvel(0,1,0)
+else:
+    initializeParticles(0)
 
 
 ##### Simulation #####
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-p1 = ax.scatter(getPXcoord(0,0),getPYcoord(0,0),getPZcoord(0,0), color='r')
-p2 = ax.scatter(getPXcoord(1,0),getPYcoord(1,0),getPZcoord(1,0), color='b')
-ax.set_xlim((0,L))
-ax.set_ylim((0,L))
-ax.set_zlim((0,L))
-plt.ion()
-plt.show()
-plt.pause(0.01)
+
+if plotting == True:
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    scatterPoints = [] # hold scatter plot data for each particle
+    colours = ['b','g','r','c','m','y','k','w']
+    for p in range(0,numOfParticles):
+        colour = colours[p%7]
+        scatterPoints.append(ax.scatter(getPXcoord(p,0),getPYcoord(p,0),getPZcoord(p,0),color=colour))
+    ax.set_xlim((0,L))
+    ax.set_ylim((0,L))
+    ax.set_zlim((0,L))
+    plt.ion()
+    plt.show()
+    plt.pause(0.01)
 
 # vp1 and vp2 to keep track of the velocities
 vp1 = np.zeros(num_t)
@@ -243,20 +318,44 @@ vp2 = np.zeros(num_t)
 # keep track of particle distance, potential energy, and kinetic energy
 particleDistances = np.zeros(num_t)
 
-# use iteration in range(num_t) and iterateCoordinates for euler method
+# TODO figure out a solution for the wrap around of timestep index
 
-# use iteration in range(num_t-1) due to need of "future" force in Verlet 
-# and iterateCoordinates_Verlet; 
-for j in range(num_t):
-    i = j%num_t # don't go over indices of parameterMatrix
-    iterateCoordinates(i)
-    iterateVelocities(i)
-    p1.remove()
-    p2.remove()
-    p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
-    p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
-    plt.pause(0.000005)
-    
+# use iteration in range(num_t) and iterateCoordinates for euler method
+# use iteration in range(num_t-1) due to need of "future" force in Verlet algorithm
+
+# TODO find a better implementation of this
+
+# REMOVE THIS FOR EULER METHOD
+# Get forces for initial positions
+getForce(0)
+
+for j in range(num_t-1):
+    i = j%(num_t-1) # don't go over indices of PC3
+
+    #Euler
+    #iterateCoordinates(i)
+    #iterateVelocities(i)
+
+    #Velocity-Verlet
+    iterateCoordinates_Verlet(i)
+    iterateVelocities_Verlet(i)
+
+    getTotalEnergy(j)
+    getKineticEnergy(j)
+
+    if plotting == True:
+        if j%plot_counter == 0:
+            for p in range(len(scatterPoints)):
+                scatterPoints[p].remove()
+                colour = colours[p%7]
+                scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
+            plt.pause(0.000005)
+
+    #p1.remove()
+    #p2.remove()
+    #p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
+    #p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
+
     vp1[i] = getPXvel(0,i)
     vp2[i] = getPXvel(1,i)
     particleDistances[i],a,b,c = getParticleDistance(0,1,i)
@@ -267,16 +366,26 @@ for j in range(num_t):
 plt.ioff()
 time = np.arange(0, num_t*timestep, timestep)
 plot_fig,a = plt.subplots(2,2)
-a[0][0].plot(time,particleDistances,color='r',label = 'Inter-particle distance')
+a[0][0].plot(time[0:-2],particleDistances[0:-2],color='r',label = 'Inter-particle distance')
 a[0][0].set_ylabel('Particle Distance')
 a[0][0].set_xlabel('time')
-a[0][1].plot(time, U,color='m',label='Potential Energy')
+a[0][1].plot(time[0:-2], U[0:-2],color='m',label='Potential Energy')
 a[0][1].set_ylabel('Potential Energy')
 a[0][1].set_xlabel('time')
-a[1][0].plot(time, E-U,color='g',label='Kinetic Energy')
+a[1][0].plot(time[0:-2], T[0:-2],color='g',label='Kinetic Energy')
 a[1][0].set_ylabel('Kinetic Energy')
 a[1][0].set_xlabel('time')
-a[1][1].plot(time, E,color='b',label='Total Energy')
+a[1][1].plot(time[0:-2], U[0:-2]+T[0:-2],color='b',label='Total Energy')
 a[1][1].set_ylabel('Total Energy')
 a[1][1].set_xlabel('time')
+a[0][0].grid()
+a[0][1].grid()
+a[1][0].grid()
+a[1][1].grid()
+# Euler
+#plot_fig.suptitle('Euler - {} particles, dt = {}'.format(numOfParticles,timestep), size = 14)
+# Verlet
+plot_fig.suptitle('Velocity-Verlet - {} particles, dt = {}'.format(numOfParticles,timestep), size = 14)
 plt.show()
+
+#print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
