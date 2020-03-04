@@ -1,7 +1,7 @@
 from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
-import os
+from math import sqrt
 
 ##### Parameters #####
 
@@ -183,6 +183,31 @@ def iterateVelocities_Verlet(ts):
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
 
+def gaussVel(T,N):
+    """Function to initialize particles velocity components according to Gaussian distribution
+    
+    Parameters
+    -------------------------
+    T   Temperture in Kelvin
+    N   Number of atoms
+
+    Return
+    -------------------------
+    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
+    the average of each velocity component array is zero.
+    
+    """
+    mu, sigma = 0, sqrt((119.8*T)/2) # mean is 0 and standard deviation in Kelvin
+    vx = np.random.normal(mu, sigma, N-1)
+    vy = np.random.normal(mu, sigma, N-1)
+    vz = np.random.normal(mu, sigma, N-1)
+    
+    vx = np.append(vx,[-1*np.sum(vx)])
+    vy = np.append(vy,[-1*np.sum(vy)])
+    vz = np.append(vz,[-1*np.sum(vz)])
+
+    return vx,vy,vz
+
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
     # timestep ts
@@ -280,9 +305,21 @@ def plotEnergy(MDS_dict):
         plt.savefig('{}.png'.format(name), dpi=150)
     
     #print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
-    
+
+  
 def dictTester(D):
+    """Func to check the input parameters saved in the dictionary MDS_dict
     
+    Parameters
+    -------------------------
+    D   MDS_dict
+
+    Raise
+    -------------------------
+    ValueError: If verlet and euler method are both chosen to be True or False
+    ValueError: If the debug_2 mode is chosen with particle number differing from 2
+    
+    """
 #    try:
 #        D['euler'] or D['verlet'] == False
 #    except ValueError as err:
@@ -393,7 +430,7 @@ def main(MDS_dict):
 #        setPZvel(0,1,0)
     else:
         print('choose appropriate string for particle initialisation: \n\
-              {} \n{}\n{}'.format('fcc','random','debug_3'))
+              {} \n{}\n{}'.format('fcc','random','debug_2'))
         
         
     ##### Simulation #####
