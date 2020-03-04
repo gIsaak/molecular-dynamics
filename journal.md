@@ -420,6 +420,32 @@ a Maxwell-Boltzmann distribution. This task should be finished before Thursday.
 - As a group, we will implement the temperature rescaling. We will first try to implement pair correlation and then
 other observables, time permitting.
 
+Update on debugging energy conservation (Brennan, 04-03-2020):
+A bug was found in the calculation of kinetic energy. When summing the kinetic energy of all particles,
+the following erroneous line was being used:
+```
+KE = 0.5*(KE + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2)
+```
+Obviously, this should be
+```
+KE = KE + 0.5*(getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2)
+```
+
+Upon making this change, we simulated 2 particles moving along the x-direction in the y=L/2,z=0 plane. They particles'
+initial positions were L/2 +/- 0.5 (starting 1 sigma apart), and they had an initial velocity of +/- 0.5. The resulting
+plot is shown below
+
+![alt text](img/week4/MDS_2p_verlet_energy_check.png "Correct energy calculation - verlet")
+
+The oscillations, as expected, show 2 particle oscillating longitudinally, bounded by collisions with each other.
+The total energy shows small jumps in energy which, in comparison to the magnitudes of kinetic and potential energy,
+are effectively negligible.
+
+Using the Euler method for the setup described above, the energy drifts upwards as expected.
+
+![alt text](img/week4/MDS_2p_euler_energy_check.png "Correct energy calculation - euler")
+
+With these results, we are happy with our algorithm and are confident to proceed with the week 4 milestones.
 
 ## Week 5
 (due before 17 March)
