@@ -21,8 +21,8 @@ MDS_parameters = {
 'numOfDimensions' : 3,
 'num_t' :           20000,
 'timestep' :        0.001,
-'plotting':         False,
-'plot_counter' :    1,
+'plotting':         True,
+'plot_counter' :    50,
 'energyPlot' :      True,
 'save_fig' :        False,
 'init_particles' :  'debug_2'

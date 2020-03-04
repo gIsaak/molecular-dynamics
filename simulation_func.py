@@ -76,7 +76,7 @@ def getTotalEnergy(ts):
 def getKineticEnergy(ts):
     KE = 0
     for i in range(numOfParticles):
-        KE = 0.5*(KE + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2)
+        KE = KE + 0.5*(getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2)
     T[ts] = KE
 
 
@@ -198,7 +198,9 @@ def initializeParticles(ts):
     # this variable limits how fast the particles can initially move
     # for example, 10 means that the particles can move no further than 1/10
     # the length of the box per timestep
-    maxInitialSpeedParameter = 50
+
+    # this variable is now included in main.py
+    maxInitialSpeedParameter = 1000
     
     dim_components = np.zeros((numOfDimensions,1),dtype=float)
     
@@ -255,10 +257,10 @@ def plotEnergy(MDS_dict):
     a[1][0].plot(time[0:-2], T[0:-2],color='g',label='Kinetic Energy')
     a[1][0].set_ylabel('Kinetic Energy')
     a[1][0].set_xlabel('time')
-    a[1][1].plot(time[0:-2], U[0:-2]+T[0:-2],color='b',label='Total Energy')
+    a[1][1].plot(time[0:-2], (U[0:-2]+T[0:-2])/numOfParticles,color='b',label='Total Energy')
     a[1][1].set_ylabel('Total Energy')
     a[1][1].set_xlabel('time')
-    a[1][1].set_ylim(0,1000)
+    #a[1][1].set_ylim(0,1000)
     a[0][0].grid()
     a[0][1].grid()
     a[1][0].grid()
@@ -287,8 +289,8 @@ def dictTester(D):
 ##        sys.stderr.write("{}: Cannot open file {}: {}\ n".format(sys.argv[0], filename, err ))
 #        print('{} Only one method at a time coputable.'.format(err))
 #        sys.exit(1)
-    if D['euler'] or D['verlet'] == False:
-      raise ValueError('Only one method at a time coputable.') 
+    if (D['euler'] and D['verlet']) or (not D['euler'] and not D['verlet']):
+      raise ValueError('Only one method at a time computable.') 
       
     if D['init_particles'] == 'debug_2' and D['numOfParticles'] != 2 :
       raise ValueError('Debug_2 assigns positions for 2 particles. \
@@ -369,18 +371,18 @@ def main(MDS_dict):
         initializeParticles(0)
     elif init_particles == 'debug_2':
         # Particle 1
-        setPXcoord(L/2,0,0)
+        setPXcoord(L/2-0.5,0,0)
         setPYcoord(L/2,0,0)
         setPZcoord(0,0,0)
-        setPXvel(10,0,0)
-        setPYvel(1,0,0)
+        setPXvel(0.5,0,0)
+        setPYvel(0,0,0)
         setPZvel(0,0,0)
         # Particle 2
-        setPXcoord(L/4,1,0)
-        setPYcoord(L/4,1,0)
+        setPXcoord(L/2+0.5,1,0)
+        setPYcoord(L/2,1,0)
         setPZcoord(0,1,0)
         setPXvel(-0.5,1,0)
-        setPYvel(5,1,0)
+        setPYvel(0,1,0)
         setPZvel(0,1,0)
         # Particle 3
 #        setPXcoord(3*L/4,2,0)
@@ -444,7 +446,7 @@ def main(MDS_dict):
             iterateCoordinates_Verlet(i)
             iterateVelocities_Verlet(i)
         
-        getTotalEnergy(j)
+        #getTotalEnergy(j)
         getKineticEnergy(j)
     
         if plotting == True:
