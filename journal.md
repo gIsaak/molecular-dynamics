@@ -409,6 +409,17 @@ total energy. This should be an easy fix.
 ## Week 4
 (due before 10 March)
 
+Weekly plan:
+- We need to investigate the oscillations in our kinetic/total energy, since we are not yet happy with the
+results we posted in the last weekly report. Brennan and Isacco are going to look at the force and energy
+calculations in order to identify any discrepancies. The tests we were performing today where we start 2 particles
+1-1/2 sigma apart with 0 velocity look okay. We want to identify what is going wrong when the particles have more
+random motion
+- Ludwig and Isacco have begun initializing particles on an fcc lattice. Brennan will sample initial velocities from
+a Maxwell-Boltzmann distribution. This task should be finished before Thursday.
+- As a group, we will implement the temperature rescaling. We will first try to implement pair correlation and then
+other observables, time permitting.
+
 
 ## Week 5
 (due before 17 March)
