@@ -20,17 +20,10 @@ MDS_parameters = {
 'latticeConst' :    2,
 'numOfParticles' :  60,
 'numOfDimensions' : 3,
-<<<<<<< HEAD
 'num_t' :           500,
 'timestep' :        0.001,
 'plotting':         False,
 'plot_counter' :    1,
-=======
-'num_t' :           20,
-'timestep' :        0.001,
-'plotting':         False,
-'plot_counter' :    50,
->>>>>>> e06eb502672b3269b82048ab79006f7b94b79c7e
 'energyPlot' :      True,
 'save_fig' :        False,
 'init_particles' :  'fcc'

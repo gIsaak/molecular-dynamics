@@ -1,12 +1,8 @@
 from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
-<<<<<<< HEAD
 from scipy.optimize import fsolve
 import os
-=======
-from math import sqrt
->>>>>>> e06eb502672b3269b82048ab79006f7b94b79c7e
 
 ##### Parameters #####
 
@@ -188,11 +184,13 @@ def iterateVelocities_Verlet(ts):
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
 
-<<<<<<< HEAD
 def init_position(ts):
     # Initializes particles into fcc lattice
     # for a given n = L/a, an fcc compatible number of particles is
     # N = (n + 1)**3 + 3*(n+1)*n**2
+    # The initialization rounds N to the closest fcc compatible N
+    # a is kept constant and L is calculated as
+    # L = a*n + a with updated N
 
     global PC3T
     global numOfParticles
@@ -205,9 +203,9 @@ def init_position(ts):
     L = a*n + a # +a to avoid putting particles on boundary
     numOfParticles = (n + 1)**3 + 3*(n+1)*n**2
 
-    # Reinitialize PC3T
+    # Reinitialize PC3T (in case N is bigger than the input N)
     PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
-    
+
     # Put particles on cubic lattice
     for i in range(n+1): # loop over z
         for j in range(n+1): # loop over y
@@ -216,8 +214,7 @@ def init_position(ts):
                 setPXcoord(k*a + a/2,p,ts) #a/2 avoids putting particles on boundary
                 setPYcoord(j*a + a/2,p,ts)
                 setPZcoord(i*a + a/2,p,ts)
-                #print("x:{}\n y:{}\n z:{}".format(k*a + a/2, j*a + a/2, i*a + a/2))
-    # Put particles on every xz face
+    # Put particles on xz faces
     for i in range(n): # loop over z
         for j in range(n+1): # loop over y
             for k in range(n): # loop over x
@@ -225,7 +222,7 @@ def init_position(ts):
                 setPXcoord(k*a + a,p,ts)
                 setPYcoord(j*a + a/2,p,ts)
                 setPZcoord(i*a + a,p,ts)
-    # Put particles on every yz face
+    # Put particles on yz faces
     for i in range(n): # loop over z
         for j in range(n): # loop over y
             for k in range(n+1): # loop over x
@@ -233,7 +230,7 @@ def init_position(ts):
                 setPXcoord(k*a + a/2,p,ts)
                 setPYcoord(j*a + a,p,ts)
                 setPZcoord(i*a + a,p,ts)
-    # Put particles on every xy face
+    # Put particles on xy faces
     for i in range(n+1): # loop over z
         for j in range(n): # loop over y
             for k in range(n): # loop over x
@@ -241,54 +238,6 @@ def init_position(ts):
                 setPXcoord(k*a + a,p,ts)
                 setPYcoord(j*a + a,p,ts)
                 setPZcoord(i*a + a/2,p,ts)
-=======
-def gaussVel(T,N):
-    """
-    Function to initialize particles velocity components according to Gaussian distribution.
-    A function called velocityAVG is called for each velocity component array to ensure the avg velocity to be zero.
-    
-    Parameters
-    -------------------------
-    T   Temperture in Kelvin
-    N   Number of atoms
-
-    Return
-    -------------------------
-    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
-    the average of each velocity component array is zero.
-    
-    """ 
-    
-    mu, sigma = 0, sqrt((119.8*T)/2) # mean is 0 and standard deviation in Kelvin
-    vx = np.random.normal(mu, sigma, N)
-    vy = np.random.normal(mu, sigma, N)
-    vz = np.random.normal(mu, sigma, N)
-    
-    vx = velocityAVG(vx)
-    vy = velocityAVG(vy)
-    vz = velocityAVG(vz)
-
-    return vx,vy,vz
-
-def velocityAVG(a):
-    '''
-    Function to set the mean value of the component velocities close to zero by adjusting each velocity
-    
-    Parameters
-    -------------------------
-    a   np.array holding velocity components 
-    
-    Return
-    -------------------------
-    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
-    the average of each velocity component array is zero.      
-    '''
-    x = np.mean(a)
-    while not -0.01 < x < 0.01:
-        a = a -(np.sum(a)/len(a))
-        x = np.mean(a)
-    return a
->>>>>>> e06eb502672b3269b82048ab79006f7b94b79c7e
 
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
@@ -388,28 +337,8 @@ def plotEnergy(MDS_dict):
 
     #print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
 
-<<<<<<< HEAD
 def dictTester(D):
 
-=======
-def printer():
-
-    print('print from function: {}'.format(numOfParticles))
-
-def dictTester(D):
-    """Func to check the input parameters saved in the dictionary MDS_dict
-    
-    Parameters
-    -------------------------
-    D   MDS_dict
-
-    Raise
-    -------------------------
-    ValueError: If verlet and euler method are both chosen to be True or False
-    ValueError: If the debug_2 mode is chosen with particle number differing from 2
-    
-    """
->>>>>>> e06eb502672b3269b82048ab79006f7b94b79c7e
 #    try:
 #        D['euler'] or D['verlet'] == False
 #    except ValueError as err:
@@ -457,14 +386,7 @@ def main(MDS_dict):
     global numOfDimensions
     numOfParticles = MDS_dict['numOfParticles'] # 2 particles
     numOfDimensions = MDS_dict['numOfDimensions'] # 3D
-<<<<<<< HEAD
 
-=======
-    
-    printer()
-    print('print from main: {}'.format(numOfParticles))
-    
->>>>>>> e06eb502672b3269b82048ab79006f7b94b79c7e
     #Total_time = 500*0.001
     global num_t
     global timestep
@@ -529,15 +451,9 @@ def main(MDS_dict):
 #        setPZvel(0,1,0)
     else:
         print('choose appropriate string for particle initialisation: \n\
-<<<<<<< HEAD
               {} \n{}\n{}'.format('fcc','random','debug_3'))
 
 
-=======
-              {} \n{}\n{}'.format('fcc','random','debug_2'))
-        
-        
->>>>>>> e06eb502672b3269b82048ab79006f7b94b79c7e
     ##### Simulation #####
 
     if plotting == True:
