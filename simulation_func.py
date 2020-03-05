@@ -1,6 +1,7 @@
 from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import fsolve
 import os
 
 ##### Parameters #####
@@ -72,7 +73,7 @@ def getTotalEnergy(ts):
     for i in range(numOfParticles):
         T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
     E[ts] = U[ts] + T/2
-    
+
 def getKineticEnergy(ts):
     KE = 0
     for i in range(numOfParticles):
@@ -183,6 +184,59 @@ def iterateVelocities_Verlet(ts):
         setPYvel(newPYvel,i,next_ts)
         setPZvel(newPZvel,i,next_ts)
 
+def init_position(ts):
+    # Initializes particles into fcc lattice
+    # for a given n = L/a, an fcc compatible number of particles is
+    # N = (n + 1)**3 + 3*(n+1)*n**2
+
+    global PC3T
+    global numOfParticles
+    global L
+
+    # Find a compatible n
+    func = lambda x : numOfParticles - (x + 1)**3 - 3*x**3
+    n = int(np.round(fsolve(func, 1.1)))
+    # Compute L and exact N
+    L = a*n + a # +a to avoid putting particles on boundary
+    numOfParticles = (n + 1)**3 + 3*(n+1)*n**2
+
+    # Reinitialize PC3T
+    PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
+    
+    # Put particles on cubic lattice
+    for i in range(n+1): # loop over z
+        for j in range(n+1): # loop over y
+            for k in range(n+1): # loop over x
+                p = i*(n+1)**2 + j*(n+1) + k #particle index, (n+1)**3 total on the cubic lattice
+                setPXcoord(k*a + a/2,p,ts) #a/2 avoids putting particles on boundary
+                setPYcoord(j*a + a/2,p,ts)
+                setPZcoord(i*a + a/2,p,ts)
+                #print("x:{}\n y:{}\n z:{}".format(k*a + a/2, j*a + a/2, i*a + a/2))
+    # Put particles on every xz face
+    for i in range(n): # loop over z
+        for j in range(n+1): # loop over y
+            for k in range(n): # loop over x
+                p = (n+1)**3 + i*n*(n+1) + j*n + k #particle index, (n+1)*n**2 on x faces
+                setPXcoord(k*a + a,p,ts)
+                setPYcoord(j*a + a/2,p,ts)
+                setPZcoord(i*a + a,p,ts)
+    # Put particles on every yz face
+    for i in range(n): # loop over z
+        for j in range(n): # loop over y
+            for k in range(n+1): # loop over x
+                p = (n+1)**3 + (n+1)*n**2 + i*n*(n+1) + j*(n+1) + k #particle index, (n+1)*n**2 on yz faces
+                setPXcoord(k*a + a/2,p,ts)
+                setPYcoord(j*a + a,p,ts)
+                setPZcoord(i*a + a,p,ts)
+    # Put particles on every xy face
+    for i in range(n+1): # loop over z
+        for j in range(n): # loop over y
+            for k in range(n): # loop over x
+                p = (n+1)**3 + 2*(n+1)*n**2 + i*n*n + j*n + k #particle index, (n+1)*n**2 on xy faces
+                setPXcoord(k*a + a,p,ts)
+                setPYcoord(j*a + a,p,ts)
+                setPZcoord(i*a + a/2,p,ts)
+
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
     # timestep ts
@@ -194,16 +248,16 @@ def initializeParticles(ts):
     # particle velocities are chosen randomly in magnitude and direction, with
     # the condition that no initial velocity is faster than some fraction the width of
     # the box per timestep
-    
+
     # this variable limits how fast the particles can initially move
     # for example, 10 means that the particles can move no further than 1/10
     # the length of the box per timestep
 
     # this variable is now included in main.py
     maxInitialSpeedParameter = 1000
-    
+
     dim_components = np.zeros((numOfDimensions,1),dtype=float)
-    
+
     for i in range(0,numOfParticles):
         # first generate positions in each dimension
         dim_components = np.random.rand(numOfDimensions,1)*L # scale to sizeOfBox
@@ -211,7 +265,7 @@ def initializeParticles(ts):
         # pass vector to method to fill parameter matrix:
         # arguments: random vector, particle number, coord/vel, timestep
         addToParameterMatrix(dim_components,i,0,ts)
-        
+
         # next generate velocities in each dimension, limited according to maxInitialSpeedParameter above
         dim_components = np.random.rand(numOfDimensions,1)/np.sqrt(numOfDimensions)*L/timestep/maxInitialSpeedParameter
         # scale velocities to be either positive or negative
@@ -223,10 +277,10 @@ def addToParameterMatrix(dim_components,pnum,xv,ts):
     #
     # function called by initializePartciels() to load randomly generated initial
     # positions/velocities into parameter matrix
-    
+
     if xv == 0:
         # load positions
-        for d in range(0,len(dim_components)):  
+        for d in range(0,len(dim_components)):
             setPncoord(dim_components[d],d,pnum,ts)
     elif xv == 1:
         # load velocities
@@ -234,7 +288,7 @@ def addToParameterMatrix(dim_components,pnum,xv,ts):
             setPnvel(dim_components[d],d,pnum,ts)
 
 def plotEnergy(MDS_dict):
-   
+
     ##### Plots #########
     # Euler
     if MDS_dict['euler'] == True:
@@ -244,7 +298,7 @@ def plotEnergy(MDS_dict):
     else:
         name = 'MDS_{}p_{}'.format(MDS_dict['numOfParticles'],'verlet')
         fig = plt.figure(name)
-    
+
     plt.ioff()
     time = np.arange(0, num_t*timestep, timestep)
     a = fig.subplots(2,2)
@@ -274,15 +328,15 @@ def plotEnergy(MDS_dict):
         fig.suptitle('Velocity-Verlet - {} particles, dt = {}'.format(MDS_dict['numOfParticles'],
                           MDS_dict['timestep']), size = 14)
     plt.show()
-    
+
     if MDS_dict['save_fig'] == True:
 #        path = os.getcwd()
         plt.savefig('{}.png'.format(name), dpi=150)
-    
+
     #print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
-    
+
 def dictTester(D):
-    
+
 #    try:
 #        D['euler'] or D['verlet'] == False
 #    except ValueError as err:
@@ -290,15 +344,15 @@ def dictTester(D):
 #        print('{} Only one method at a time coputable.'.format(err))
 #        sys.exit(1)
     if (D['euler'] and D['verlet']) or (not D['euler'] and not D['verlet']):
-      raise ValueError('Only one method at a time computable.') 
-      
+      raise ValueError('Only one method at a time computable.')
+
     if D['init_particles'] == 'debug_2' and D['numOfParticles'] != 2 :
       raise ValueError('Debug_2 assigns positions for 2 particles. \
-                       Use another initialisation method for more particles.') 
-    
-    
-        
-#    
+                       Use another initialisation method for more particles.')
+
+
+
+#
 #    MDS_parameters = {
 #'euler' :           False,
 #'verlet' :          True,
@@ -318,42 +372,45 @@ def dictTester(D):
 def main(MDS_dict):
 
     dictTester(MDS_dict)
-    
+
     # setting of the used parameters stored in dictionary
     global L
+    global a
     L = MDS_dict['boxSize_L'] # size of each periodic unit cell L (in units of sigma)
-    
+    a = MDS_dict['latticeConst'] # lattice constant
+    # init_position will overwrite L when called
+
     global numOfParticles
     global numOfDimensions
     numOfParticles = MDS_dict['numOfParticles'] # 2 particles
     numOfDimensions = MDS_dict['numOfDimensions'] # 3D
-    
+
     #Total_time = 500*0.001
     global num_t
     global timestep
     num_t = MDS_dict['num_t']
     timestep = MDS_dict['timestep']
-    
+
     global plotting
-    global plot_counter    
+    global plot_counter
     plotting = MDS_dict['plotting']
     plot_counter = MDS_dict['plot_counter']
-    
+
     init_particles = MDS_dict['init_particles']
-    
-    
+
+
     # Create n x d x 3 numpy array of floats "PC3T" to store n particles
     # P = particle, C = coordinate (x, y or z), 3 = (position,velocity, force), T = timestep
     # in d dimensions with 3 (position, velocity and force) parameters, and num_t timesteps stored.
-    
+
     # For example, access particle 2's position in the y-direction at time_step=0 as
     # PC3T[1][1][0][0]
     # Access particle 1's momentum in the x-direction at time_step=1 as
     # PC3T[0][0][1][1]
-    
+
     global PC3T
     PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
-        
+
     # Initialize potential energy matrix U and total energy E
     # for tracking potential and total energy at each timestep
     global U
@@ -362,11 +419,10 @@ def main(MDS_dict):
     U = np.zeros((num_t,1), dtype=float)
     E = np.zeros((num_t,1), dtype=float)
     T = np.zeros((num_t,1), dtype=float)
-    
+
     ##### Set initial positions/velocities for all particles ####
     if init_particles == 'fcc':
-        #to do: implement fcc structure
-        pass
+        init_position(0)
     elif init_particles == 'random':
         initializeParticles(0)
     elif init_particles == 'debug_2':
@@ -394,10 +450,10 @@ def main(MDS_dict):
     else:
         print('choose appropriate string for particle initialisation: \n\
               {} \n{}\n{}'.format('fcc','random','debug_3'))
-        
-        
+
+
     ##### Simulation #####
-    
+
     if plotting == True:
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
@@ -412,43 +468,43 @@ def main(MDS_dict):
         plt.ion()
         plt.show()
         plt.pause(0.01)
-    
+
     # vp1 and vp2 to keep track of the distances
     vp1 = np.zeros(num_t)
     vp2 = np.zeros(num_t)
-    
+
     # keep track of particle distance, potential energy, and kinetic energy
     global particleDistances
     particleDistances = np.zeros(num_t)
-    
+
     # TODO figure out a solution for the wrap around of timestep index
-    
+
     # use iteration in range(num_t) and iterateCoordinates for euler method
     # use iteration in range(num_t-1) due to need of "future" force in Verlet algorithm
-    
+
     # TODO find a better implementation of this
-    
+
     # REMOVE THIS FOR EULER METHOD
     # Get forces for initial positions
     if MDS_dict['verlet'] == True:
         getForce(0)
-    
+
     for j in range(num_t-1):
         i = j%(num_t-1) # don't go over indices of PC3
-    
+
         #Euler
         if MDS_dict['euler'] == True:
             iterateCoordinates(i)
             iterateVelocities(i)
-    
+
         #Velocity-Verlet
         if MDS_dict['verlet'] == True:
             iterateCoordinates_Verlet(i)
             iterateVelocities_Verlet(i)
-        
+
         #getTotalEnergy(j)
         getKineticEnergy(j)
-    
+
         if plotting == True:
             if j%plot_counter == 0:
                 for p in range(len(scatterPoints)):
@@ -456,18 +512,18 @@ def main(MDS_dict):
                     colour = colours[p%7]
                     scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
                 plt.pause(0.000005)
-        
+
 #        p1.remove()
 #        p2.remove()
 #        p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
 #        p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
-    
+
         vp1[i] = getPXvel(0,i)
         vp2[i] = getPXvel(1,i)
-        
+
         particleDistances[i],a,b,c = getParticleDistance(0,1,i)
         #time.sleep(0.05)
-        
+
     if MDS_dict['energyPlot'] == True:
         plotEnergy(MDS_dict)
 

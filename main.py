@@ -16,18 +16,18 @@ import simulation_func as fu
 MDS_parameters = {
 'euler' :           False,
 'verlet' :          True,
-'boxSize_L' :       5,
-'numOfParticles' :  2,
+'boxSize_L' :       5, #optional, init_position will overwirte
+'latticeConst' :    2,
+'numOfParticles' :  60,
 'numOfDimensions' : 3,
-'num_t' :           20000,
+'num_t' :           500,
 'timestep' :        0.001,
-'plotting':         True,
-'plot_counter' :    50,
+'plotting':         False,
+'plot_counter' :    1,
 'energyPlot' :      True,
 'save_fig' :        False,
-'init_particles' :  'debug_2'
+'init_particles' :  'fcc'
 }
 
 
 _ = fu.main(MDS_parameters)
-
