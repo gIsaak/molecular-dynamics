@@ -184,7 +184,9 @@ def iterateVelocities_Verlet(ts):
         setPZvel(newPZvel,i,next_ts)
 
 def gaussVel(T,N):
-    """Function to initialize particles velocity components according to Gaussian distribution
+    """
+    Function to initialize particles velocity components according to Gaussian distribution.
+    A function called velocityAVG is called for each velocity component array to ensure the avg velocity to be zero.
     
     Parameters
     -------------------------
@@ -196,17 +198,37 @@ def gaussVel(T,N):
     vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
     the average of each velocity component array is zero.
     
-    """
-    mu, sigma = 0, sqrt((119.8*T)/2) # mean is 0 and standard deviation in Kelvin
-    vx = np.random.normal(mu, sigma, N-1)
-    vy = np.random.normal(mu, sigma, N-1)
-    vz = np.random.normal(mu, sigma, N-1)
+    """ 
     
-    vx = np.append(vx,[-1*np.sum(vx)])
-    vy = np.append(vy,[-1*np.sum(vy)])
-    vz = np.append(vz,[-1*np.sum(vz)])
+    mu, sigma = 0, sqrt((119.8*T)/2) # mean is 0 and standard deviation in Kelvin
+    vx = np.random.normal(mu, sigma, N)
+    vy = np.random.normal(mu, sigma, N)
+    vz = np.random.normal(mu, sigma, N)
+    
+    vx = velocityAVG(vx)
+    vy = velocityAVG(vy)
+    vz = velocityAVG(vz)
 
     return vx,vy,vz
+
+def velocityAVG(a):
+    '''
+    Function to set the mean value of the component velocities close to zero by adjusting each velocity
+    
+    Parameters
+    -------------------------
+    a   np.array holding velocity components 
+    
+    Return
+    -------------------------
+    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
+    the average of each velocity component array is zero.      
+    '''
+    x = np.mean(a)
+    while not -0.01 < x < 0.01:
+        a = a -(np.sum(a)/len(a))
+        x = np.mean(a)
+    return a
 
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
@@ -306,7 +328,10 @@ def plotEnergy(MDS_dict):
     
     #print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
 
-  
+def printer():
+
+    print('print from function: {}'.format(numOfParticles))
+
 def dictTester(D):
     """Func to check the input parameters saved in the dictionary MDS_dict
     
@@ -364,6 +389,9 @@ def main(MDS_dict):
     global numOfDimensions
     numOfParticles = MDS_dict['numOfParticles'] # 2 particles
     numOfDimensions = MDS_dict['numOfDimensions'] # 3D
+    
+    printer()
+    print('print from main: {}'.format(numOfParticles))
     
     #Total_time = 500*0.001
     global num_t
