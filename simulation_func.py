@@ -239,6 +239,53 @@ def init_position(ts):
                 setPYcoord(j*a + a,p,ts)
                 setPZcoord(i*a + a/2,p,ts)
 
+def gaussVel(temp,ts):
+    '''
+    Function to initialize particles velocity components according to Gaussian distribution.
+    A function called velocityAVG is called for each velocity component array to ensure the avg velocity to be zero.
+
+    Parameters
+    -------------------------
+    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
+    the average of each velocity component array is zero.
+    '''
+    global PC3T
+
+    mu, sigma = 0, np.sqrt(temp/119.8) # mean is 0 and standard deviation in Kelvin
+    vx = np.random.normal(mu, sigma, numOfParticles)
+    vy = np.random.normal(mu, sigma, numOfParticles)
+    vz = np.random.normal(mu, sigma, numOfParticles)
+    # set mean to zeros
+    vx = vx - np.mean(vx)
+    vy = vy - np.mean(vy)
+    vz = vz - np.mean(vz)
+    print(vx)
+    # load into PC3T
+    for i in range(numOfParticles):
+        setPXvel(vx[i],i,ts)
+        setPYvel(vy[i],i,ts)
+        setPZvel(vz[i],i,ts)
+
+def velocityAVG(a):
+    '''
+    Function to set the mean value of the component velocities close to zero by adjusting each velocity
+
+    Parameters
+    -------------------------
+    a   np.array holding velocity components
+
+    Return
+    -------------------------
+    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
+    the average of each velocity component array is zero.
+    '''
+    x = np.mean(a)
+    while not -0.01 < x < 0.01:
+        a = a -(np.sum(a)/len(a))
+        x = np.mean(a)
+    return a
+
+
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
     # timestep ts
@@ -387,7 +434,9 @@ def main(MDS_dict):
     numOfParticles = MDS_dict['numOfParticles'] # 2 particles
     numOfDimensions = MDS_dict['numOfDimensions'] # 3D
 
-    #Total_time = 500*0.001
+    global temp
+    temp = MDS_dict['temp'] #temperature
+
     global num_t
     global timestep
     num_t = MDS_dict['num_t']
@@ -425,6 +474,7 @@ def main(MDS_dict):
     ##### Set initial positions/velocities for all particles ####
     if init_particles == 'fcc':
         init_position(0)
+        gaussVel(temp,0)
     elif init_particles == 'random':
         initializeParticles(0)
     elif init_particles == 'debug_2':
