@@ -285,6 +285,19 @@ def velocityAVG(a):
         x = np.mean(a)
     return a
 
+def scaleParticleVelocities(ts):
+    # uses global variable temp to rescale velocities (all particles, all dimensions)
+    
+    # calculate the rescaling
+    sum_of_m_vi_squared = 2*float(T[ts])
+    
+    rescalingConstant = np.sqrt((numOfParticles-1)*3*temp/119.8/sum_of_m_vi_squared)
+    
+    print('Rescaling constant: ', rescalingConstant)
+    
+    # multiply all velocity components for all particles by this value
+    np.multiply(PC3T[:,:,1,ts], rescalingConstant)
+
 
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
@@ -475,6 +488,9 @@ def main(MDS_dict):
     if init_particles == 'fcc':
         init_position(0)
         gaussVel(temp,0)
+        #if plotting = True:
+            # TODO Plot histogram of initial velocities
+                
     elif init_particles == 'random':
         initializeParticles(0)
     elif init_particles == 'debug_2':
@@ -540,7 +556,9 @@ def main(MDS_dict):
     # Get forces for initial positions
     if MDS_dict['verlet'] == True:
         getForce(0)
-
+        
+            
+    equilibrium_timestep = -1;
     for j in range(num_t-1):
         i = j%(num_t-1) # don't go over indices of PC3
 
@@ -564,11 +582,26 @@ def main(MDS_dict):
                     colour = colours[p%7]
                     scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
                 plt.pause(0.000005)
+                
+        # Equilibrate every 0.1 seconds in unitless time
+        if i%100 == 99:
+            # check if at equilibrium, note that 119.8 converts natural energy scale to Kelvin (see week 1 notes)
+            # see if temperature agrees to desired temperature within <1> Kelvin. If it does, don't equilibrate
+            if equilibrium_timestep == -1:
+                if abs(float(T[i]) / (numOfParticles-1) / (3/2) * 119.8 - temp) > 1:
+                    # we need to equilibrate
+                    # scale all particle velocities
+                    scaleParticleVelocities(i)
+                    print('Rescaling from temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
+                else:
+                    # we can use equilibrium_timestep as the beginning index for calculating observables
+                    equilibrium_timestep = i
+                    getKineticEnergy(i)
+                    print('Rescaled temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
+                    
+                    if plotting == True:
+                        plt.title('Equilibrium reached')
 
-#        p1.remove()
-#        p2.remove()
-#        p1 = ax.scatter(getPXcoord(0,i),getPYcoord(0,i), getPZcoord(0,i),color='r')
-#        p2 = ax.scatter(getPXcoord(1,i),getPYcoord(1,i), getPZcoord(0,i),color='b')
 
         vp1[i] = getPXvel(0,i)
         vp2[i] = getPXvel(1,i)

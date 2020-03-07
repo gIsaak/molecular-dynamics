@@ -21,10 +21,10 @@ MDS_parameters = {
 'numOfParticles' :  12,
 'numOfDimensions' : 3,
 'temp' :            300,
-'num_t' :           500,
+'num_t' :           5000,
 'timestep' :        0.001,
 'plotting':         True,
-'plot_counter' :    1,
+'plot_counter' :    20,
 'energyPlot' :      True,
 'save_fig' :        False,
 'init_particles' :  'fcc'
