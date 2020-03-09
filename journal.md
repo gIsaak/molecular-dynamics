@@ -608,6 +608,29 @@ the proper equilibration of the system for several days. This bug was found but 
 time for the thorough implementation of observables. More debugging and code-cleaning will
 occur next week.
 
+Ludwig imoplemented the second observable for the system, the pressure. At the end of the simulation, the program will calculate the pressure in the system as described in the provided week 4 notes. 
+
+```
+    n = MDS_dict['num_t']
+    n1 = MDS_dict['equilibrium_timestep']
+    B = 119.8/MDS_dict['temp']
+    rho = numOfParticles/(L**3)
+    
+    S = 0
+    for ts in range(n1,n): # plus one to get last index
+        for i, j in combinations(range(numOfParticles), 2):
+            r,_,_,_ = getParticleDistance(i,j,ts)
+            S = S + 24*(-2*(1/r)**11 + (1/r)**5) # S displays the sum over du/dr
+    
+    pp = 1 - (B/(6*numOfParticles)*(1/(n-n1)))*S
+    
+    P = pp*rho/B
+    
+    return P
+```
+
+The unit of the pressure has to be overthought.
+
 
 ## Week 5
 (due before 17 March)
