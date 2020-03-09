@@ -84,7 +84,8 @@ def getKineticEnergy(ts):
 def getForce(ts):
     # calculates the force on each particle and
     # U of the system  at a given timestep
-
+    
+    PE = 0
     for i in range(numOfParticles):
         j = 0
         while j < i:
@@ -100,7 +101,11 @@ def getForce(ts):
             PC3T[j][2][2][ts] = PC3T[j][2][2][ts] + grad*rel_z/r  #fz particle j
             j += 1
             # Compute U
-            U[ts] = 4*(invr6**2 - invr6)
+            PE = PE + 4*(invr6**2 - invr6)
+            
+            # add distance to tracked observable particleDistances
+            particleDistances[ts+i*numOfParticles+j] = r
+    U[ts] = PE
 
 # Euler algorithm
 def iterateCoordinates(ts):
@@ -296,7 +301,9 @@ def scaleParticleVelocities(ts):
     print('Rescaling constant: ', rescalingConstant)
     
     # multiply all velocity components for all particles by this value
-    np.multiply(PC3T[:,:,1,ts], rescalingConstant)
+    #print('Previous vel:', getPXvel(0,ts))
+    PC3T[:,:,1,ts] = np.multiply(PC3T[:,:,1,ts], rescalingConstant)
+    #print('Next vel:',getPXvel(0,ts))
 
 
 def initializeParticles(ts):
@@ -364,19 +371,21 @@ def plotEnergy(MDS_dict):
     plt.ioff()
     time = np.arange(0, num_t*timestep, timestep)
     a = fig.subplots(2,2)
-    a[0][0].plot(time[0:-2],particleDistances[0:-2],color='r',label = 'Inter-particle distance')
-    a[0][0].set_ylabel('Particle Distance')
-    a[0][0].set_xlabel('time')
+    #a[0][0].plot(time[0:-2],particleDistances[0:-2],color='r',label = 'Inter-particle distance')
+    #a[0][0].set_ylabel('Particle Distance')
+    #a[0][0].set_xlabel('time')
     a[0][1].plot(time[0:-2], U[0:-2],color='m',label='Potential Energy')
     a[0][1].set_ylabel('Potential Energy')
     a[0][1].set_xlabel('time')
+    a[0][1].set_ylim(-5*numOfParticles,5*numOfParticles)
     a[1][0].plot(time[0:-2], T[0:-2],color='g',label='Kinetic Energy')
     a[1][0].set_ylabel('Kinetic Energy')
     a[1][0].set_xlabel('time')
-    a[1][1].plot(time[0:-2], (U[0:-2]+T[0:-2])/numOfParticles,color='b',label='Total Energy')
+    a[1][0].set_ylim(0,5*numOfParticles)
+    a[1][1].plot(time[0:-2], (U[0:-2]+T[0:-2]),color='b',label='Total Energy')
     a[1][1].set_ylabel('Total Energy')
     a[1][1].set_xlabel('time')
-    #a[1][1].set_ylim(0,1000)
+    a[1][1].set_ylim(0,5*numOfParticles)
     a[0][0].grid()
     a[0][1].grid()
     a[1][0].grid()
@@ -483,6 +492,11 @@ def main(MDS_dict):
     U = np.zeros((num_t,1), dtype=float)
     E = np.zeros((num_t,1), dtype=float)
     T = np.zeros((num_t,1), dtype=float)
+    
+    # keep track of particle distance, potential energy, and kinetic energy
+    global particleDistances # to compute pair correlation function
+    numberOfPairwiseInteractions = numOfParticles*(numOfParticles-1)/2
+    particleDistances = np.zeros((int(num_t*numberOfPairwiseInteractions),1), dtype=float)
 
     ##### Set initial positions/velocities for all particles ####
     if init_particles == 'fcc':
@@ -515,6 +529,28 @@ def main(MDS_dict):
 #        setPXvel(0,1,0)
 #        setPYvel(0,1,0)
 #        setPZvel(0,1,0)
+    elif init_particles == 'debug_3':
+        # Particle 1
+        setPXcoord(L/2-0.5,0,0)
+        setPYcoord(L/2,0,0)
+        setPZcoord(0,0,0)
+        setPXvel(0.5,0,0)
+        setPYvel(0,0,0)
+        setPZvel(0,0,0)
+        # Particle 2
+        setPXcoord(L/2+0.5,1,0)
+        setPYcoord(L/2,1,0)
+        setPZcoord(0,1,0)
+        setPXvel(-0.5,1,0)
+        setPYvel(0,1,0)
+        setPZvel(0,1,0)
+        # Particle 3
+        setPXcoord(L/2,2,0)
+        setPYcoord(L/2+0.5,2,0)
+        setPZcoord(0,0,0)
+        setPXvel(0,1,0)
+        setPYvel(0.5,1,0)
+        setPZvel(0,1,0)
     else:
         print('choose appropriate string for particle initialisation: \n\
               {} \n{}\n{}'.format('fcc','random','debug_3'))
@@ -541,10 +577,6 @@ def main(MDS_dict):
     vp1 = np.zeros(num_t)
     vp2 = np.zeros(num_t)
 
-    # keep track of particle distance, potential energy, and kinetic energy
-    global particleDistances
-    particleDistances = np.zeros(num_t)
-
     # TODO figure out a solution for the wrap around of timestep index
 
     # use iteration in range(num_t) and iterateCoordinates for euler method
@@ -557,34 +589,17 @@ def main(MDS_dict):
     if MDS_dict['verlet'] == True:
         getForce(0)
         
-            
-    equilibrium_timestep = -1;
+    
+    # IF YOU WANT TO EQUILIBRATE THE SYSTEM, CHANGE equilibrium_timestep TO -1
+    equilibrium_timestep = -1; 
     for j in range(num_t-1):
         i = j%(num_t-1) # don't go over indices of PC3
-
-        #Euler
-        if MDS_dict['euler'] == True:
-            iterateCoordinates(i)
-            iterateVelocities(i)
-
-        #Velocity-Verlet
-        if MDS_dict['verlet'] == True:
-            iterateCoordinates_Verlet(i)
-            iterateVelocities_Verlet(i)
-
-        #getTotalEnergy(j)
-        getKineticEnergy(j)
-
-        if plotting == True:
-            if j%plot_counter == 0:
-                for p in range(len(scatterPoints)):
-                    scatterPoints[p].remove()
-                    colour = colours[p%7]
-                    scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
-                plt.pause(0.000005)
-                
-        # Equilibrate every 0.1 seconds in unitless time
-        if i%100 == 99:
+        
+        # First calculate kinetic energy at the given timestep
+        getKineticEnergy(i)
+        
+        # Equilibrate every 0.1 seconds in unitless time, if required
+        if i%30 == 29:
             # check if at equilibrium, note that 119.8 converts natural energy scale to Kelvin (see week 1 notes)
             # see if temperature agrees to desired temperature within <1> Kelvin. If it does, don't equilibrate
             if equilibrium_timestep == -1:
@@ -601,15 +616,54 @@ def main(MDS_dict):
                     
                     if plotting == True:
                         plt.title('Equilibrium reached')
+                        
+        ### Measure Observables ###
+        
+        # particleDistances is added to in getForce loop
+        
+        
+        ###########################
+                        
+        # Now evolve system
+
+        #Euler
+        if MDS_dict['euler'] == True:
+            iterateCoordinates(i)
+            iterateVelocities(i)
+
+        #Velocity-Verlet
+        if MDS_dict['verlet'] == True:
+            iterateCoordinates_Verlet(i)
+            iterateVelocities_Verlet(i)
+
+        if plotting == True:
+            if j%plot_counter == 0:
+                for p in range(len(scatterPoints)):
+                    scatterPoints[p].remove()
+                    colour = colours[p%7]
+                    scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
+                plt.pause(0.000005)
 
 
         vp1[i] = getPXvel(0,i)
         vp2[i] = getPXvel(1,i)
-
-        particleDistances[i],a,b,c = getParticleDistance(0,1,i)
+        
         #time.sleep(0.05)
+        
+    ### Post-simulation processing ###
 
     if MDS_dict['energyPlot'] == True:
         plotEnergy(MDS_dict)
+
+    ### Compute Observables ###
+    
+    # create histogram for pair correlation function
+    # the histogram of the data
+    n, bins, patches = plt.hist(particleDistances, 100, density=True, facecolor='g', alpha=0.75)
+    plt.show()
+    
+    
+    #print(sum(particleDistances[equilibrium_timestep:-2])/(num_t-2-equilibrium_timestep))
+    
 
     return MDS_dict

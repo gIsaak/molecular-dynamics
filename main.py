@@ -16,19 +16,28 @@ import simulation_func as fu
 MDS_parameters = {
 'euler' :           False,
 'verlet' :          True,
-'boxSize_L' :       5, #optional, init_position will overwirte
+'boxSize_L' :       6, #optional, init_position will overwirte
 'latticeConst' :    3,
-'numOfParticles' :  12,
+'numOfParticles' :  14,
 'numOfDimensions' : 3,
 'temp' :            300,
-'num_t' :           5000,
+'num_t' :           1000,
 'timestep' :        0.001,
 'plotting':         True,
-'plot_counter' :    20,
-'energyPlot' :      True,
+'plot_counter' :    10,
+'energyPlot' :      False,
 'save_fig' :        False,
 'init_particles' :  'fcc'
 }
 
 
 _ = fu.main(MDS_parameters)
+
+
+# When I test with 14 particles in a box of size 50, energy is conserved just fine
+
+# When debug 3 is run, there are sharp spikes in the kinetic and total energies.
+# Aside from these individual spikes, total energy remains quite constant.
+
+# BIG PROBLEM FOUND: In getForce function, potential energy was overwritten for each
+# pairwise interaction, not summed over the total number of pairwise interaction
