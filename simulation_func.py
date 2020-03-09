@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 import os
-
+from itertools import combinations
 ##### Parameters #####
 
 # Lennard-Jones parameters Argon
@@ -422,22 +422,26 @@ def dictTester(D):
       raise ValueError('Debug_2 assigns positions for 2 particles. \
                        Use another initialisation method for more particles.')
 
+def pressure(MDS_dict):
+    
+    n = MDS_dict['num_t']
+    n1 = MDS_dict['equilibrium_timestep']
+    B = 119.8/MDS_dict['temp']
+    rho = numOfParticles/(L**3)
+    
+    S = 0
+    for ts in range(n1,n): # plus one to get last index
+        for i, j in combinations(range(numOfParticles), 2):
+            r,_,_,_ = getParticleDistance(i,j,ts)
+            S = S + 24*(-2*(1/r)**11 + (1/r)**5) # S displays the sum over du/dr
+    
+    pp = 1 - (B/(6*numOfParticles)*(1/(n-n1)))*S
+    
+    P = pp*rho/B
+    
+    return P
 
 
-#
-#    MDS_parameters = {
-#'euler' :           False,
-#'verlet' :          True,
-#'boxSize_L' :       5,
-#'numOfParticles' :  2,
-#'numOfDimensions' : 3,
-#'num_t' :           200,
-#'timestep' :        0.001,
-#'plotting':         True,
-#'plot_counter' :    1,
-#'energyPlot' :      True,
-#'init_particles' :  'debug_2'
-#}
 
 ################# Begin main program ########################
 
@@ -612,6 +616,7 @@ def main(MDS_dict):
                 else:
                     # we can use equilibrium_timestep as the beginning index for calculating observables
                     equilibrium_timestep = i
+                    MDS_dict['equilibrium_timestep'] = equilibrium_timestep
                     getKineticEnergy(i)
                     print('Rescaled temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
                     
@@ -660,6 +665,9 @@ def main(MDS_dict):
         plotEnergy(MDS_dict)
 
     ### Compute Observables ###
+    
+    P = pressure(MDS_dict)
+    print('Pressure of the System: P = {}'.format(P))
     
     numOfBins = 100 # number of bins for pair correlation histogram
     

@@ -18,14 +18,14 @@ MDS_parameters = {
 'verlet' :          True,
 'boxSize_L' :       6, #optional, init_position will overwirte
 'latticeConst' :    1.7,
-'numOfParticles' :  14,
+'numOfParticles' :  25,
 'numOfDimensions' : 3,
-'temp' :            90,
+'temp' :            300,
 'num_t' :           5000,
 'timestep' :        0.001,
-'plotting':         True,
+'plotting':         False,
 'plot_counter' :    10,
-'energyPlot' :      True,
+'energyPlot' :      False,
 'save_fig' :        False,
 'init_particles' :  'fcc'
 }
