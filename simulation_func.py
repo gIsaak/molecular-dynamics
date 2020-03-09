@@ -85,6 +85,7 @@ def getForce(ts):
     # calculates the force on each particle and
     # U of the system  at a given timestep
     
+    particle_distance_counter = 0 # hacky counter for tracking particle pairwise distances at each timestep
     PE = 0
     for i in range(numOfParticles):
         j = 0
@@ -100,11 +101,14 @@ def getForce(ts):
             PC3T[j][1][2][ts] = PC3T[j][1][2][ts] + grad*rel_y/r  #fy particle j
             PC3T[j][2][2][ts] = PC3T[j][2][2][ts] + grad*rel_z/r  #fz particle j
             j += 1
-            # Compute U
+            
+            # Compute Potential Energy
             PE = PE + 4*(invr6**2 - invr6)
             
-            # add distance to tracked observable particleDistances
-            particleDistances[ts+i*numOfParticles+j] = r
+            # add distance to tracked observable particleDistances if equilibrium has been reached
+            particleDistances[particle_distance_counter] = particleDistances[particle_distance_counter] + r
+            particle_distance_counter += 1
+            
     U[ts] = PE
 
 # Euler algorithm
@@ -292,19 +296,16 @@ def velocityAVG(a):
 
 def scaleParticleVelocities(ts):
     # uses global variable temp to rescale velocities (all particles, all dimensions)
+    # according to the current kinetic energy at the given timestep ts
     
     # calculate the rescaling
     sum_of_m_vi_squared = 2*float(T[ts])
     
     rescalingConstant = np.sqrt((numOfParticles-1)*3*temp/119.8/sum_of_m_vi_squared)
     
-    print('Rescaling constant: ', rescalingConstant)
-    
     # multiply all velocity components for all particles by this value
-    #print('Previous vel:', getPXvel(0,ts))
     PC3T[:,:,1,ts] = np.multiply(PC3T[:,:,1,ts], rescalingConstant)
-    #print('Next vel:',getPXvel(0,ts))
-
+    #print('Rescaling constant: ', rescalingConstant)
 
 def initializeParticles(ts):
     # creates a random position and velocity for each particle at the given
@@ -496,7 +497,7 @@ def main(MDS_dict):
     # keep track of particle distance, potential energy, and kinetic energy
     global particleDistances # to compute pair correlation function
     numberOfPairwiseInteractions = numOfParticles*(numOfParticles-1)/2
-    particleDistances = np.zeros((int(num_t*numberOfPairwiseInteractions),1), dtype=float)
+    particleDistances = np.zeros((int(numberOfPairwiseInteractions),1), dtype=float)
 
     ##### Set initial positions/velocities for all particles ####
     if init_particles == 'fcc':
@@ -617,6 +618,9 @@ def main(MDS_dict):
                     if plotting == True:
                         plt.title('Equilibrium reached')
                         
+                    # zero observables
+                    particleDistances = np.multiply(particleDistances,0)
+                        
         ### Measure Observables ###
         
         # particleDistances is added to in getForce loop
@@ -657,10 +661,27 @@ def main(MDS_dict):
 
     ### Compute Observables ###
     
+    numOfBins = 100 # number of bins for pair correlation histogram
+    
     # create histogram for pair correlation function
     # the histogram of the data
-    n, bins, patches = plt.hist(particleDistances, 100, density=True, facecolor='g', alpha=0.75)
+    plt.figure(2)
+    particleDistances = particleDistances/(num_t-1-equilibrium_timestep)
+    plt.ion()
+    n, bins, patches = plt.hist(particleDistances, numOfBins, facecolor='g')
+    
+    # Calculate pair correlation function for each bin
+    pairCorrelation = np.zeros((numOfBins,1),dtype=float)
+    for i in range(numOfBins):
+        pairCorrelation[i] = 2*L**3/numOfParticles/(numOfParticles-1)*n[i]/4/np.pi/bins[i]**2/(bins[i+1]-bins[i])
+    
+    plt.figure(3)
+    plt.plot(bins[0:-1],pairCorrelation)
+    plt.ylabel('g(r)')
+    plt.xlabel(r'$r/\sigma$')
     plt.show()
+    plt.pause(30)
+    
     
     
     #print(sum(particleDistances[equilibrium_timestep:-2])/(num_t-2-equilibrium_timestep))

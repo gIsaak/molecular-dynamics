@@ -17,15 +17,15 @@ MDS_parameters = {
 'euler' :           False,
 'verlet' :          True,
 'boxSize_L' :       6, #optional, init_position will overwirte
-'latticeConst' :    3,
+'latticeConst' :    1.7,
 'numOfParticles' :  14,
 'numOfDimensions' : 3,
-'temp' :            300,
-'num_t' :           1000,
+'temp' :            90,
+'num_t' :           5000,
 'timestep' :        0.001,
 'plotting':         True,
 'plot_counter' :    10,
-'energyPlot' :      False,
+'energyPlot' :      True,
 'save_fig' :        False,
 'init_particles' :  'fcc'
 }
