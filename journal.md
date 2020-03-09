@@ -538,6 +538,75 @@ We presents the histograms for the velocities distribution, first for the x comp
 
 ![alt text](img/week4/v_hist1099.png "Velocity distribution")
 
+Brennan implemented the temperature equilibration routine. We rescale the velocities of the system at certain intervals
+during the beginning of the simulation to bring the system to the desired temperature. First, we check to see if the temperature
+is within 1 degree Kelvin of the desired temperature:
+
+```
+if abs(float(T[i]) / (numOfParticles-1) / (3/2) * 119.8 - temp) > 1:
+                    # we need to equilibrate
+                    # scale all particle velocities
+                    scaleParticleVelocities(i)
+```
+
+We use natural units for energy, so the factor of 119.8 relates the temperature in Kelvin to this energy scale.
+
+To scale velocities, we multiply all velocity components at the "rescaling" timestep by the desired value
+to shift the temperature of the system:
+
+```
+def scaleParticleVelocities(ts):
+    # uses global variable temp to rescale velocities (all particles, all dimensions)
+    # according to the current kinetic energy at the given timestep ts
+    
+    # calculate the rescaling
+    sum_of_m_vi_squared = 2*float(T[ts])
+    
+    rescalingConstant = np.sqrt((numOfParticles-1)*3*temp/119.8/sum_of_m_vi_squared)
+    
+    # multiply all velocity components for all particles by this value
+    PC3T[:,:,1,ts] = np.multiply(PC3T[:,:,1,ts], rescalingConstant)
+```
+
+We played around with the appropriate time scale over which to re-equilibrate. We settled with
+40 timesteps of 0.001 in natural units, such that rescaling did not take too long but allowed
+sufficient time for the system to adjust to each rescaling. In this way, it did not take too
+long to equilibrate the system:
+
+![alt text](img/week4/MDS_14p_verlet_short_equilibration "Temperature Rescaling")
+
+Brennan also implemented the first observable for the system, the pair correlation function.
+Once the system has reached equilibrium, the program will start adding the total distance between particles
+every time it iterates the system evolution. After running the complete simulation, the average over all
+timesteps is taken such that the pair correlation formula can be computed:
+
+```
+n, bins, patches = plt.hist(particleDistances, numOfBins, facecolor='g')
+    
+    # Calculate pair correlation function for each bin
+    pairCorrelation = np.zeros((numOfBins,1),dtype=float)
+    for i in range(numOfBins):
+        pairCorrelation[i] = 2*L**3/numOfParticles/(numOfParticles-1)*n[i]/4/np.pi/bins[i]**2/(bins[i+1]-bins[i])
+    
+    plt.figure(3)
+    plt.plot(bins[0:-1],pairCorrelation)
+    plt.ylabel('g(r)')
+    plt.xlabel(r'$r/\sigma$')
+```
+
+The result, when simulated at 90 K, gives the following correlation function:
+
+![alt text](img/week4/pair_correlation_90_fcc.png "Pair correlation function")
+
+Currently, the observable is believed to be erroneous as the results does not replicate
+the peak-like structure that has been reported in previous literature. (e.g. "Correlations
+in the Motion of Atoms in Liquid Argon" by Rahman (1964)). More time will be needed to
+debug this.
+
+This is largely because of a bug with the calculation of potential energy which held up
+the proper equilibration of the system for several days. This bug was found but left little
+time for the thorough implementation of observables. More debugging and code-cleaning will
+occur next week.
 
 
 ## Week 5
