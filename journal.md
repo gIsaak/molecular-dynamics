@@ -447,5 +447,98 @@ Using the Euler method for the setup described above, the energy drifts upwards 
 
 With these results, we are happy with our algorithm and are confident to proceed with the week 4 milestones.
 
+Isacco implemented the initialization of the particles on an fcc lattice., writing a function called **init_position**
+The program takes as input a user specified lattice constant a (in units of sigma) and a number of particles N. Not every N can be arranged on an fcc lattice therefore the program computes the closest integer that satisfies this constraint sets it as the new N.
+In more detail: given n = L/a we have that N = (n + 1)^3 + 3(n+1)n^2 for an fcc lattice.
+The program takes a user specified N, then solves the equation above for n and rounds it to an integer. This will determine the final N for the simulation and L will be calculated accordingly, i.e.
+L = a*n + a
+the additional a avoids putting particles on the boundary.
+```
+# Find a compatible n
+    func = lambda x : numOfParticles - (x + 1)**3 - 3*x**3
+    n = int(np.round(fsolve(func, 1.1)))
+    # Compute L and exact N
+    L = a*n + a # +a to avoid putting particles on boundary
+    numOfParticles = (n + 1)**3 + 3*(n+1)*n**2
+```
+We proceed now to place the particles on the lattice.
+To do so we proceed in three steps:
+- First we place the particles on a simple cubic lattice
+- Second we place the particles on the faces parallel to the xz plane
+- Third we place the particles on the faces parallel to the yz plane
+- Fourth we place the particles on the faces parallel to the xy plane
+Here we can see the implementation in code.
+```
+# Put particles on cubic lattice
+   for i in range(n+1): # loop over z
+       for j in range(n+1): # loop over y
+           for k in range(n+1): # loop over x
+               p = i*(n+1)**2 + j*(n+1) + k #particle index, (n+1)**3 total on the cubic lattice
+               setPXcoord(k*a + a/2,p,ts) #a/2 avoids putting particles on boundary
+               setPYcoord(j*a + a/2,p,ts)
+               setPZcoord(i*a + a/2,p,ts)
+   # Put particles on xz faces
+   for i in range(n): # loop over z
+       for j in range(n+1): # loop over y
+           for k in range(n): # loop over x
+               p = (n+1)**3 + i*n*(n+1) + j*n + k #particle index, (n+1)*n**2 on x faces
+               setPXcoord(k*a + a,p,ts)
+               setPYcoord(j*a + a/2,p,ts)
+               setPZcoord(i*a + a,p,ts)
+   # Put particles on yz faces
+   for i in range(n): # loop over z
+       for j in range(n): # loop over y
+           for k in range(n+1): # loop over x
+               p = (n+1)**3 + (n+1)*n**2 + i*n*(n+1) + j*(n+1) + k #particle index, (n+1)*n**2 on yz faces
+               setPXcoord(k*a + a/2,p,ts)
+               setPYcoord(j*a + a,p,ts)
+               setPZcoord(i*a + a,p,ts)
+   # Put particles on xy faces
+   for i in range(n+1): # loop over z
+       for j in range(n): # loop over y
+           for k in range(n): # loop over x
+               p = (n+1)**3 + 2*(n+1)*n**2 + i*n*n + j*n + k #particle index, (n+1)*n**2 on xy faces
+               setPXcoord(k*a + a,p,ts)
+               setPYcoord(j*a + a,p,ts)
+               setPZcoord(i*a + a/2,p,ts)
+```
+Here we can see the result for N = 14
+![alt text](img/week4/fcc.png "FCC lattice")
+
+Ludwig created a function for the initial velocities called **gaussVel**.
+The functions calls for np.random.normal to sample a normal distribution, given the variance (sigma) and mean (mu).
+In reduced units we obtained $sigma = sqrt(T/epsilon) = sqrt(T/119.8)$
+```
+def gaussVel(temp,ts):
+    '''
+    Function to initialize particles velocity components according to Gaussian distribution.
+
+    Parameters
+    -------------------------
+    temp = temperature (in Kelvin)
+    '''
+    global PC3T
+
+    mu, sigma = 0, np.sqrt(temp/119.8) # mean is 0 and standard deviation in Kelvin
+    vx = np.random.normal(mu, sigma, numOfParticles)
+    vy = np.random.normal(mu, sigma, numOfParticles)
+    vz = np.random.normal(mu, sigma, numOfParticles)
+    # set mean to zeros
+    vx = vx - np.mean(vx)
+    vy = vy - np.mean(vy)
+    vz = vz - np.mean(vz)
+    print(vx)
+    # load into PC3T
+    for i in range(numOfParticles):
+        setPXvel(vx[i],i,ts)
+        setPYvel(vy[i],i,ts)
+        setPZvel(vz[i],i,ts)
+```
+We presents the histograms for the velocities distribution, first for the x component only and then for squared modulus.
+
+![alt text](img/week4/v_hist1099.png "Velocity distribution")
+
+
+
 ## Week 5
 (due before 17 March)
