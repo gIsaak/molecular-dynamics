@@ -573,7 +573,7 @@ We played around with the appropriate time scale over which to re-equilibrate. W
 sufficient time for the system to adjust to each rescaling. In this way, it did not take too
 long to equilibrate the system:
 
-![alt text](img/week4/MDS_14p_verlet_short_equilibration "Temperature Rescaling")
+![alt text](img/week4/MDS_14p_verlet_short_equilibration.png "Temperature Rescaling")
 
 Brennan also implemented the first observable for the system, the pair correlation function.
 Once the system has reached equilibrium, the program will start adding the total distance between particles
