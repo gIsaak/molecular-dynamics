@@ -10,10 +10,20 @@ import simulation_func as fu
 # plot_counter=int  --integer value to display only every int's scatter plot to reduce simulation plots
 
 # savefig == True   --saves figure as MDS_#particles_method.png in current dir
+'''
+Parameters
 
+algorithm:              {euler, verlet}
+
+
+latticeConstant:        integer
+numOfParticles :        integer
+
+'''
 
 
 MDS_parameters = {
+'algorithm':        "verlet",
 'euler' :           False,
 'verlet' :          True,
 'boxSize_L' :       6, #optional, init_position will overwirte
@@ -21,11 +31,11 @@ MDS_parameters = {
 'numOfParticles' :  25,
 'numOfDimensions' : 3,
 'temp' :            300,
-'num_t' :           5000,
+'num_t' :           1000,
 'timestep' :        0.001,
-'plotting':         False,
+'plotting':         True,
 'plot_counter' :    10,
-'energyPlot' :      False,
+'energyPlot' :      True,
 'save_fig' :        False,
 'init_particles' :  'fcc'
 }
