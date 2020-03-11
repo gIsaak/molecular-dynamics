@@ -558,12 +558,12 @@ to shift the temperature of the system:
 def scaleParticleVelocities(ts):
     # uses global variable temp to rescale velocities (all particles, all dimensions)
     # according to the current kinetic energy at the given timestep ts
-    
+
     # calculate the rescaling
     sum_of_m_vi_squared = 2*float(T[ts])
-    
+
     rescalingConstant = np.sqrt((numOfParticles-1)*3*temp/119.8/sum_of_m_vi_squared)
-    
+
     # multiply all velocity components for all particles by this value
     PC3T[:,:,1,ts] = np.multiply(PC3T[:,:,1,ts], rescalingConstant)
 ```
@@ -582,12 +582,12 @@ timesteps is taken such that the pair correlation formula can be computed:
 
 ```
 n, bins, patches = plt.hist(particleDistances, numOfBins, facecolor='g')
-    
+
     # Calculate pair correlation function for each bin
     pairCorrelation = np.zeros((numOfBins,1),dtype=float)
     for i in range(numOfBins):
         pairCorrelation[i] = 2*L**3/numOfParticles/(numOfParticles-1)*n[i]/4/np.pi/bins[i]**2/(bins[i+1]-bins[i])
-    
+
     plt.figure(3)
     plt.plot(bins[0:-1],pairCorrelation)
     plt.ylabel('g(r)')
@@ -608,24 +608,24 @@ the proper equilibration of the system for several days. This bug was found but 
 time for the thorough implementation of observables. More debugging and code-cleaning will
 occur next week.
 
-Ludwig imoplemented the second observable for the system, the pressure. At the end of the simulation, the program will calculate the pressure in the system as described in the provided week 4 notes. 
+Ludwig imoplemented the second observable for the system, the pressure. At the end of the simulation, the program will calculate the pressure in the system as described in the provided week 4 notes.
 
 ```
     n = MDS_dict['num_t']
     n1 = MDS_dict['equilibrium_timestep']
     B = 119.8/MDS_dict['temp']
     rho = numOfParticles/(L**3)
-    
+
     S = 0
     for ts in range(n1,n): # plus one to get last index
         for i, j in combinations(range(numOfParticles), 2):
             r,_,_,_ = getParticleDistance(i,j,ts)
             S = S + 24*(-2*(1/r)**11 + (1/r)**5) # S displays the sum over du/dr
-    
+
     pp = 1 - (B/(6*numOfParticles)*(1/(n-n1)))*S
-    
+
     P = pp*rho/B
-    
+
     return P
 ```
 
@@ -634,3 +634,8 @@ The unit of the pressure has to be overthought.
 
 ## Week 5
 (due before 17 March)
+
+Weekly plan:
+- Brennan will clean the code in order to eliminate global variables and make data more accessible to different functions for calculating observables, extensibility, etc.
+- Isacco will implement the calculation of fluctuations and new observables
+- Ludwig will start working on the final report and continue working on observables
