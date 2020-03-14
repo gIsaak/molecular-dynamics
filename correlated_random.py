@@ -46,8 +46,11 @@ def autocorr(data, plot=True):
     '''
     Computes autocorrelation function for an observable
 
-    See formula in the lecutre notes.
+    Autocorrelation function as calculated in the lecutre notes (week 5)
     The cutoff for t is given by t = sqrt(N_sim)
+    Autocorrelation length tau is computed fitting the curve to
+    exp(-(t-a)/tau) + b
+
     Parameters
     ----------
 
@@ -58,6 +61,8 @@ def autocorr(data, plot=True):
     --------
     chi: numpy array
         autocorrelation function
+    tau: float
+        autocorrentaion length
     '''
     N_sim = int(data.size) #number of simulation steps
     chi_length = int(round(np.sqrt(N_sim))) #cutoff at sqrt(N_sim)
@@ -71,21 +76,19 @@ def autocorr(data, plot=True):
         chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
     # Fit
     xdata = np.arange(chi_length)
-    def func(x, tau, b):
-        return np.exp(-x/tau) + b
+    def func(x, tau, a, b):
+        return np.exp(-(x-a)/tau) + b
     param, _ = curve_fit(func, xdata, chi)
     tau = param[0]
-    print(tau)
     if plot == True:
         plt.plot(xdata, chi, 'b-', label='data')
         # Fit
-        plt.plot(xdata, func(xdata, *param), 'r--', label='fit: tau=%5.3f, b=%5.3f' % tuple(param))
+        plt.plot(xdata, func(xdata, *param), 'r--', label=r'fit: $\tau$=%5.3f, a=%5.3f, b=%5.3f' % tuple(param))
         plt.xlabel('t')
-        plt.ylabel('Chi')
+        plt.ylabel(r'$\chi$')
+        plt.title(r'N = %d' % N_sim)
         plt.legend()
         plt.show()
-
-
     return chi, tau
 
 N = 20000
@@ -93,7 +96,10 @@ mu = 0
 sigma = 1
 tau = 50
 data = normal_autocorr(mu, sigma, tau, N)
-chi = autocorr(data)
+chi, tau_fit = autocorr(data, plot=True)
 
 plt.plot(data)
+plt.xlabel('n')
+plt.ylabel('$A_n$')
+plt.title(r'N=%d, $\sigma$=%d, $\tau$=%5.2f' % (N, sigma, tau))
 plt.show()
