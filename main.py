@@ -16,38 +16,36 @@ Parameters
 algorithm:              {euler, verlet}
 
 
-latticeConstant:        integer
-numOfParticles :        integer
+latticeConstant:        integer, fcc lattice constant in units of sigma
+numOfParticles :        integer, 
 
 '''
 
 
 MDS_parameters = {
-'algorithm':        "verlet",
-'euler' :           False,
-'verlet' :          True,
-'boxSize_L' :       6, #optional, init_position will overwirte
-'latticeConst' :    1.7,
-'numOfParticles' :  25,
-'numOfDimensions' : 3,
-'temp' :            300,
-'num_t' :           1000,
-'timestep' :        0.001,
-'plotting':         True,
-'plot_counter' :    10,
-'energyPlot' :      True,
-'save_fig' :        False,
-'init_particles' :  'fcc'
+
+# Simulation
+'algorithm':            'verlet',
+'number_of_timesteps':  1000,
+'timestep' :            0.001,
+
+# Initialial Configuration
+'init_particles':       'fcc',
+'box_size':             6, # init_particles 'fcc' will overwrite
+'lattice_constant':     1.7, # used only by init_particles 'fcc'
+'number_of_particles':  14, # init_particles 'fcc' will overwrite
+'number_of_dimensions': 3, # hardcoded to 3 in simulation_func.py force calculation
+'bath_temperature' :    300, # temperature of microcanonical ensemble
+
+# Plotting options
+'plotting':             True, # Plot particle motion in scatter plot
+'plot_counter' :        10,
+'energy_plot' :         True,
+'save_figures':         False,
+
+# Observables
+'pair_correlation':     True
+# TODO create other observable flags
 }
 
-
 _ = fu.main(MDS_parameters)
-
-
-# When I test with 14 particles in a box of size 50, energy is conserved just fine
-
-# When debug 3 is run, there are sharp spikes in the kinetic and total energies.
-# Aside from these individual spikes, total energy remains quite constant.
-
-# BIG PROBLEM FOUND: In getForce function, potential energy was overwritten for each
-# pairwise interaction, not summed over the total number of pairwise interaction
