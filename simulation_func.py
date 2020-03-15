@@ -129,7 +129,7 @@ def getParticleDistanceArray(x,numOfParticles,numOfDimensions,boxSize):
     '''
     # initialize array to store particle-pair distances for all unique pairings
     # the four columns contain: r (total distance), r_x, r_y, r_z, etc.
-    particleDistances = np.zeros(((numOfParticles**2-numOfParticles)/2,1+numOfDimensions),dtype=float)
+    particleDistances = np.zeros((int((numOfParticles**2-numOfParticles)/2),1+numOfDimensions),dtype=float)
     pairIndex = 0
 
     # we will always iterate over particle pairs as follows for consistency
@@ -364,7 +364,7 @@ def gaussVel(temp, numOfParticles, numOfDimensions):
     return newV
 
 
-def getVelocityScalingFactor(KE,bathTemperature):
+def getVelocityScalingFactor(KE,bathTemperature,numOfParticles):
     '''
     Function accepts a kinetic energy and desired system temperature, and returns
     the appropriate value by which all velocity components should be scaled such
@@ -395,22 +395,22 @@ def plotEnergy(algorithm,numOfParticles,numOfTimesteps,timestep,saveFigures,U,T)
     plt.ioff()
     time = np.arange(0, numOfTimesteps*timestep, timestep)
     # Potentil energy
-    axs[0].plot(time, U,color='m',label='Potential Energy')
+    axs[0].plot(time, U[0:-1],color='m',label='Potential Energy')
     axs[0].set_ylabel('Potential Energy')
     axs[0].set_xlabel('t')
     axs[0].set_ylim(-5*numOfParticles,5*numOfParticles)
     axs[0].grid()
     # Kinetic energy
-    axs[1].plot(time, T,color='g',label='Kinetic Energy')
+    axs[1].plot(time, T[0:-1],color='g',label='Kinetic Energy')
     axs[1].set_ylabel('Kinetic Energy')
     axs[1].set_xlabel('t')
     axs[1].set_ylim(0,5*numOfParticles)
     axs[1].grid()
     # Total energy
-    axs[2].plot(time[0:-2], U+T ,color='b',label='Total Energy')
+    axs[2].plot(time, U[0:-1]+T[0:-1] ,color='b',label='Total Energy')
     axs[2].set_ylabel('Total Energy')
     axs[2].set_xlabel('t')
-    axs[2].set_ylim(0,5*numOfParticles)
+    axs[2].set_ylim(-5*numOfParticles,5*numOfParticles)
     axs[2].grid()
     # Set figure title
     if algorithm == "euler":
@@ -482,9 +482,13 @@ def main(MDS_dict):
 
     # variable to track simulation equilibrium
     equilibriumTimestep = -1
-
+    
     # number of timesteps before equilibration
-    equilibrationTimer = 30
+    equilibrationTimer = 20
+    
+    # initialize memory for plotting
+    scatterPoints = []
+    colours = ['b','g','r','c','m','y','k','w']
 
     ########################
     ### Simulation Setup ###
@@ -506,8 +510,8 @@ def main(MDS_dict):
 
     # Initialize matrices to hold potential and kinetic energies, U and T respectively.
     # These arrays are of length numOfTimesteps as they track the entire simulation
-    U = np.zeros((numOfTimesteps,1), dtype=float)
-    T = np.zeros((numOfTimesteps,1), dtype=float)
+    U = np.zeros((numOfTimesteps+1,1), dtype=float)
+    T = np.zeros((numOfTimesteps+1,1), dtype=float)
 
     # Initialize data sturctures according to user-defined flags in main.py
     if pairCorrelation == True:
@@ -524,8 +528,8 @@ def main(MDS_dict):
         PC3T = np.zeros((numOfParticles,numOfDimensions,3,numOfStoredTimesteps), dtype=float)
         print(initialX.shape)
         print(PC3T.shape)
-        PC3T[:][:][0][0] = initialX
-        PC3T[:][:][1][0] = initialV
+        PC3T[:,:,0,0] = initialX
+        PC3T[:,:,1,0] = initialV
 
     elif initParticles == 'random':
         raise Exception('Not coded yet')
@@ -538,9 +542,7 @@ def main(MDS_dict):
         # set up scatter plot for displaying particle motion
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        scatterPoints = [] # hold scatter plot data for each particle
-        colours = ['b','g','r','c','m','y','k','w']
-        for p in range(0,numOfParticles):
+        for p in range(numOfParticles):
             colour = colours[p%7]
             scatterPoints.append(ax.scatter(PC3T[p,0,0,0],PC3T[p,1,0,0],PC3T[p,2,0,0],color=colour))
         ax.set_xlim((0,boxSize))
@@ -549,11 +551,6 @@ def main(MDS_dict):
         plt.ion()
         plt.show()
         plt.pause(0.01)
-
-    # TODO figure out a solution for the wrap around of timestep index
-
-    # use iteration in range(num_t) and iterateCoordinates for euler method
-    # use iteration in range(num_t-1) due to need of "future" force in Verlet algorithm
 
     ##################
     ### Simulation ###
@@ -579,7 +576,7 @@ def main(MDS_dict):
                 if abs(float(T[j]) / (numOfParticles-1) / (3/2) * 119.8 - bathTemperature) > 1:
                     # we need to equilibrate
                     # scale all particle velocities
-                    scalingConstant = getVelocityScalingFactor(T[j],bathTemperature)
+                    scalingConstant = getVelocityScalingFactor(T[j],bathTemperature,numOfParticles)
                     PC3T[:,:,1,i] = np.multiply(PC3T[:,:,1,i],scalingConstant)
 
                     # recalculate present kinetic energy
@@ -620,7 +617,7 @@ def main(MDS_dict):
             # Verlet time-evolution
             # Force at time = 0 is calculated before evolving for Verlet method
             if i+1 < numOfStoredTimesteps:
-                PC3T[:,:,0,i+1] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep)
+                PC3T[:,:,0,i+1] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep,boxSize)
                 # Must evaluate force at next timestep to iterate velocities
                 # Calculate inter-particle distances at current timestep
                 particleDistances = getParticleDistanceArray(PC3T[:,:,0,i+1],numOfParticles,numOfDimensions,boxSize)
@@ -628,7 +625,7 @@ def main(MDS_dict):
                 PC3T[:,:,2,i+1],U[j+1] = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
                 PC3T[:,:,1,i+1] = iterateVelocities_Verlet(PC3T[:,:,1,i],PC3T[:,:,2,i],PC3T[:,:,2,i+1],numOfParticles,numOfDimensions,timestep)
             else:
-                PC3T[:,:,0,0] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep)
+                PC3T[:,:,0,0] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep,boxSize)
                 # Evaluate force at next timestep, as above
                 particleDistances = getParticleDistanceArray(PC3T[:,:,0,0],numOfParticles,numOfDimensions,boxSize)
                 PC3T[:,:,2,0],U[j+1] = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
@@ -638,7 +635,7 @@ def main(MDS_dict):
         if plotting == True:
             if j%plotCounter == 0:
                 for p in range(len(scatterPoints)):
-                    scatterPoints[p].remove()
+                    scatterPoints.pop(0).remove()
                     colour = colours[p%7]
                     scatterPoints.append(ax.scatter(PC3T[p,0,0,i],PC3T[p,1,0,i],PC3T[p,2,0,i],color=colour))
                 plt.pause(0.000005)
