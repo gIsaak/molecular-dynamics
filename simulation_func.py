@@ -158,7 +158,7 @@ def iterateVelocities_Verlet(v,f,nextf,numOfParticles,numOfDimensions,timestep):
             newV[i,j] = v[i,j] + 0.5*timestep*(f[i,j] + nextf[i,j])
     return newV
 
-def init_position(a,numOfParticles,numOfDimensions):
+def init_position(a,numOfParticles,numOfDimensions,density):
     '''
     Accepts lattice constant (a), numOfParticles, numOfDimensions
     Returns a submatrix newX of particles positions on fcc lattice
@@ -173,9 +173,18 @@ def init_position(a,numOfParticles,numOfDimensions):
     '''
     func = lambda x : numOfParticles - (x + 1)**3 - 3*x**3 # Find a compatible n
     n = int(np.round(fsolve(func, 1.1))) #1.1 initial guess
+	
     # Compute L and exact N
     L = a*n + a # +a to avoid putting particles on boundary
     newNumOfParticles = (n + 1)**3 + 3*(n+1)*n**2
+    print('hi')
+
+    # if statement to adjust lattice constant in case density is specified
+    if density != 0:
+        a = ((newNumOfParticles/density)**(1/3))/(n+1)
+        L = a*n + a # +a to avoid putting particles on boundary
+    print('Density: {}\nNumber N: {}\nLattice const: {}'.format(newNumOfParticles/(L**3),newNumOfParticles,a))
+
     newX = np.zeros((newNumOfParticles,numOfDimensions), dtype=float)
     p = 0 # particle index
     # Put particles on cubic lattice
@@ -358,6 +367,7 @@ def main(MDS_dict):
     plotCounter = MDS_dict['plot_counter']
     energyPlot = MDS_dict['energy_plot']
     saveFigures = MDS_dict['save_figures']
+    density = MDS_dict['density']
 
     pairCorrelation = MDS_dict['pair_correlation']
     # TODO load other observable flags
@@ -409,7 +419,7 @@ def main(MDS_dict):
     if initParticles == 'fcc':
         numOfDimensions = 3 # Always use 3 dimensions (program hardcoded)
         # place particles on fcc lattice and initialize velocities with M-B distribution
-        initialX, numOfParticles, boxSize = init_position(latticeConstant, numOfParticles, numOfDimensions)
+        initialX, numOfParticles, boxSize = init_position(latticeConstant, numOfParticles, numOfDimensions,density)
         initialV = gaussVel(bathTemperature, numOfParticles, numOfDimensions)
         PC3T = np.zeros((numOfParticles,numOfDimensions,3,numOfStoredTimesteps), dtype=float)
         PC3T[:,:,0,0] = initialX

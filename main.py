@@ -21,11 +21,12 @@ numOfParticles :        integer,
 
 '''
 
+i = 1.095
 
 MDS_parameters = {
 
 # Simulation
-'number_of_timesteps':  10000,
+'number_of_timesteps':  100,
 'timestep' :            0.001,
 
 # Initialial Configuration
@@ -34,10 +35,11 @@ MDS_parameters = {
 'lattice_constant':     2, # used only by init_particles 'fcc'
 'number_of_particles':  14, # init_particles 'fcc' will overwrite
 'number_of_dimensions': 3, # hardcoded to 3 in simulation_func.py force calculation
-'bath_temperature' :    3, # temperature of microcanonical ensemble
+'bath_temperature' :    119.8*i, # temperature of microcanonical ensemble
+'density':				0.88, # used only by init_particles 'fcc' choose 0 for arbitrary density set by user specification of a
 
 # Plotting options
-'plotting':             True, # Plot particle motion in scatter plot
+'plotting':             False, # Plot particle motion in scatter plot
 'plot_counter' :        10,
 'energy_plot' :         True,
 'save_figures':         False,
