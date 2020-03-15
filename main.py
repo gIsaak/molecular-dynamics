@@ -17,7 +17,7 @@ algorithm:              {euler, verlet}
 
 
 latticeConstant:        integer, fcc lattice constant in units of sigma
-numOfParticles :        integer, 
+numOfParticles :        integer,
 
 '''
 
@@ -25,8 +25,7 @@ numOfParticles :        integer,
 MDS_parameters = {
 
 # Simulation
-'algorithm':            'verlet',
-'number_of_timesteps':  1000,
+'number_of_timesteps':  10000,
 'timestep' :            0.001,
 
 # Initialial Configuration
@@ -35,7 +34,7 @@ MDS_parameters = {
 'lattice_constant':     3, # used only by init_particles 'fcc'
 'number_of_particles':  14, # init_particles 'fcc' will overwrite
 'number_of_dimensions': 3, # hardcoded to 3 in simulation_func.py force calculation
-'bath_temperature' :    300, # temperature of microcanonical ensemble
+'bath_temperature' :    3, # temperature of microcanonical ensemble
 
 # Plotting options
 'plotting':             True, # Plot particle motion in scatter plot
