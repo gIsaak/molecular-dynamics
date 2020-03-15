@@ -31,7 +31,7 @@ MDS_parameters = {
 # Initialial Configuration
 'init_particles':       'fcc',
 'box_size':             6, # init_particles 'fcc' will overwrite
-'lattice_constant':     3, # used only by init_particles 'fcc'
+'lattice_constant':     2, # used only by init_particles 'fcc'
 'number_of_particles':  14, # init_particles 'fcc' will overwrite
 'number_of_dimensions': 3, # hardcoded to 3 in simulation_func.py force calculation
 'bath_temperature' :    3, # temperature of microcanonical ensemble
