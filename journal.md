@@ -658,7 +658,7 @@ the normal\_autocorr() function in the correlated\_random.py script in the repos
 
 The fit is performed by the autocorr() function:
 
-'''
+```
 def autocorr(data, plot=True):
     N_sim = int(data.size) #number of simulation steps
     chi_length = int(round(np.sqrt(N_sim))) #cutoff at sqrt(N_sim)
@@ -686,7 +686,7 @@ def autocorr(data, plot=True):
         plt.legend()
         plt.show()
     return chi, tau
-'''
+```
 
 In the case of the data above, the following fit can be obtained:
 
