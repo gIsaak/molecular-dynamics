@@ -2,6 +2,7 @@ from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
+from scipy.optimize import curve_fit
 import os
 from itertools import combinations
 ##### Parameters #####
@@ -277,10 +278,60 @@ def plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T):
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
 
-def averageAndError(obs):
+def autocorr(data, plot=True):
+    '''
+    Computes autocorrelation function for an observable
+
+    Autocorrelation function as calculated in the lecutre notes (week 5)
+    The cutoff for t is given by t = sqrt(N_sim)
+    Autocorrelation length tau is computed fitting the curve to
+    exp(-(t-a)/tau) + b
+
+    Parameters
+    ----------
+
+    data: numpy array
+        value of observable at each timestep
+
+    Returns:
+    --------
+    chi: numpy array
+        autocorrelation function
+    tau: float
+        autocorrentaion length
+    '''
+    N_sim = int(data.size) #number of simulation steps
+    chi_length = int(round(np.sqrt(N_sim))) #cutoff at sqrt(N_sim)
+    chi = np.zeros(shape=(chi_length,))
+    for t in range(chi_length):
+        a, b, c = 0, 0, 0
+        for n in range(N_sim - t):
+            a = a + data[n]*data[n+t]
+            b = b + data[n]
+            c = c + data[n+t]
+        chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
+    # Fit
+    xdata = np.arange(chi_length)
+    def func(x, tau, a, b):
+        return np.exp(-(x-a)/tau) + b
+    param, _ = curve_fit(func, xdata, chi)
+    tau = param[0]
+    if plot == True:
+        plt.plot(xdata, chi, 'b-', label='data')
+        # Fit
+        plt.plot(xdata, func(xdata, *param), 'r--', label=r'Autocorrelation $\tau$=%5.3f, a=%5.3f, b=%5.3f' % tuple(param))
+        plt.xlabel('t')
+        plt.ylabel(r'$\chi$')
+        plt.title(r'N = %d' % N_sim)
+        plt.legend()
+        plt.show()
+    return chi, tau
+
+def averageAndError(obs,autoCorr=False, plotAutoCorr=False):
     '''
     Function to computer and observable average and error
-    assuming statistically independent data)
+    - autoCorr = False (default) assumes statistically independent data
+    - autoCorr = True            rescales with correlation time tau
 
     Accepts: obs: array of observable values at each time-step
              numOfTimesteps: number of observable values
@@ -290,7 +341,11 @@ def averageAndError(obs):
     obs2 = np.square(obs)
     avg = np.mean(obs)
     avg2 = np.mean(obs2)
-    sigma = np.sqrt((avg2 - avg**2)/(obs.size - 1))
+    N = obs.size
+    sigma = np.sqrt((avg2 - avg**2)/(N - 1))
+    if autoCorr == True:
+        _, tau = autocorr(obs, plotAutoCorr)
+        sigma = sigma*np.sqrt(2*tau*(N - 1)/N)
     return avg, sigma
 
 def pcf_count(distances, numOfBins, boxSize):
@@ -551,14 +606,18 @@ def main(MDS_dict):
         plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T)
     #Pair correlation function
     pcf, pcfErr = pcf_plot(pcfCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False)
-    # pressure
+    # Pressure
     # P gives pressure at each timestep without time avg of prev timesteps
     P = (1 - 119.8/(3*numOfParticles*bathTemperature)*P)
     # PP gives mean pressure with time avg
-    PP = (1 - 119.8/(3*numOfParticles*bathTemperature)*np.mean(P))
-    print('pressure is: {}'.format(PP))
+    avgP, Perr = averageAndError(P,True, True)
+    print('pressure is: {} $\ pm$ {}'.format(avgP, Perr))
     plt.figure('Pressure')
-    plt.plot(P)
+    xdata = np.arange(0,numOfTimesteps)
+    plt.plot(xdata, P, color='b')
+    plt.errorbar(xdata, np.full(xdata.shape,avgP), np.full(xdata.shape,Perr), color='r')
+    plt.xlabel('t')
+    plt.ylabel('P')
     plt.show()
 
     return MDS_dict

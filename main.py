@@ -26,7 +26,7 @@ i = 1.36 # dimless temp as used in verlet paper
 MDS_parameters = {
 
 # Simulation
-'number_of_timesteps':  10000,
+'number_of_timesteps':  20000,
 'timestep' :            0.001,
 
 # Initialial Configuration
