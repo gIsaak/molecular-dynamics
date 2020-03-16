@@ -277,16 +277,31 @@ def plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T):
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
 
-def pcf_count(distances, histCount, numOfBins, boxSize):
+def averageAndError(obs):
+    '''
+    Function to computer and observable average and error
+    assuming statistically independent data)
+
+    Accepts: obs: array of observable values at each time-step
+             numOfTimesteps: number of observable values
+    Returns: avg: avergae of observable
+             sigma: observable error
+    '''
+    obs2 = np.square(obs)
+    avg = np.mean(obs)
+    avg2 = np.mean(obs2)
+    sigma = np.sqrt((avg2 - avg**2)/(obs.size - 1))
+    return avg, sigma
+
+def pcf_count(distances, numOfBins, boxSize):
     '''
     Function to create histcount to compute PCF (Pair Correlation  Function)
     Accepts: distances: array of particle-particle distances
-             function
-             histCount: array from previous call of pdf_count
              numOfBins: number of bins in hsitogram
              boxSize: simultion box size
-    Returns: (updated) histCount array
+    Returns: histCount array
     '''
+    histCount = np.zeros(shape=(numOfBins,))
     dr = boxSize/numOfBins
     for j in range(distances.size):
         i = int(distances[j]//dr)
@@ -296,26 +311,30 @@ def pcf_count(distances, histCount, numOfBins, boxSize):
 def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False):
     '''
     Function to compute and plot PCF (Pair Correlation Function)
-    Accepts: histCount: array from pcf_count
+    Accepts: histCount: array pcf histcounts at each timestep shape=(numOfBins,numOfTimesteps)
              numOfParticles: simulation particles
              numOfTimesteps: number of timesteps used to compute PCF
              numOfBins: number of bins in hsitogram
              boxSize: simultion box size
     Returns: pcf array
     '''
-    pcf = np.zeros(histCount.shape, dtype= float)
-    r = np.zeros(histCount.shape, dtype= float)
+    pcf = np.zeros(shape=(numOfBins,), dtype= float)
+    pcfErr = np.zeros(shape=(numOfBins,), dtype= float)
+    r = np.zeros(shape=(numOfBins,), dtype= float)
+
     numOfParticlePairs = numOfParticles*(numOfParticles-1)/2
     V = boxSize**3
     dr = boxSize/numOfBins
     for j in range(pcf.size):
         r[j] = (j + 0.5)*dr
-        pcf[j] = histCount[j]*V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)/numOfTimesteps
+        rawPCF, rawErrPCF = averageAndError(histCount[:,j])
+        pcf[j]= rawPCF *V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)
+        pcfErr[j] = rawErrPCF *V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)
     # Plot
     name = 'pcfN_{}'.format(numOfParticles)
     fig = plt.figure(name)
     plt.ioff()
-    plt.plot(r, pcf, color='b',label='Pair Correlation Function')
+    plt.errorbar(r, pcf, pcfErr, label='Pair Correlation Function')
     plt.xlabel('r')
     plt.ylabel('PCF')
     plt.grid()
@@ -324,7 +343,7 @@ def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, save
     # Save figure
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
-    return pcf
+    return pcf, pcfErr
 
 
 def pressure(particleDistances):
@@ -478,7 +497,7 @@ def main(MDS_dict):
         if i%equilibrationTimer == equilibrationTimer-1:
             if abs(float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8 - bathTemperature) > 1:
                 scalingConstant = getVelocityScalingFactor(T_equilibration,bathTemperature,numOfParticles)
-                print('Scaling constant', scalingConstant)
+                print('Scaling constant:', scalingConstant)
                 PC3T[:,:,1,i_next] = np.multiply(PC3T[:,:,1,i_next],scalingConstant) #rescale
                 T_equilibration = getKineticEnergy(PC3T[:,:,1,i_next],numOfParticles,numOfDimensions) #update kinetic energy
                 print('Rescaling from temperature: ',float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8)
@@ -497,7 +516,7 @@ def main(MDS_dict):
 
     # Initialize observables
     numOfBins = int(round(np.sqrt(numOfTimesteps)))
-    pcfCount = np.zeros(shape=(numOfBins,))
+    pcfCount = np.zeros(shape=(numOfTimesteps,numOfBins))
     P = np.zeros(shape=(numOfTimesteps,))
     ### BEGINNING OF BIG LOOP ###
     for j in range(numOfTimesteps):
@@ -519,7 +538,7 @@ def main(MDS_dict):
                     scatterPoints.append(ax.scatter(PC3T[p,0,0,i],PC3T[p,1,0,i],PC3T[p,2,0,i],color=colour))
                 plt.pause(0.000005)
         #Observables
-        pcfCount = pcf_count(particleDistances[:,0], pcfCount, numOfBins, boxSize)
+        pcfCount[j,:] = pcf_count(particleDistances[:,0], numOfBins, boxSize)
         P[j] = pressure(particleDistances)
 
 
@@ -531,8 +550,7 @@ def main(MDS_dict):
     if energyPlot == True:
         plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T)
     #Pair correlation function
-    pcfTime = numOfTimesteps - equilibriumTimestep
-    pcf = pcf_plot(pcfCount, numOfParticles, pcfTime, numOfBins, boxSize, saveFigures = False)
+    pcf, pcfErr = pcf_plot(pcfCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False)
     # pressure
     # P gives pressure at each timestep without time avg of prev timesteps
     P = (1 - 119.8/(3*numOfParticles*bathTemperature)*P)
