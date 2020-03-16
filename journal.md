@@ -651,7 +651,7 @@ global variables used for fast prototyping and refactoring some large functions 
 observables. Brennan and Isacco completed this, ensuring that the new code worked up to the standards of the week 4 milestones before proceeding to implement
 the observables.
 
-Isacco prototyped the error calculating with a known dataset. The autocorrelated sequence of Gaussian random numbers is created by 
+Isacco prototyped the error calculating with a known dataset. The autocorrelated sequence of Gaussian random numbers is created by
 the normal\_autocorr() function in the correlated\_random.py script in the repository. The data looks as follows:
 
 ![alt text](img/week5/correlated_random_data.png "Autocorrelated Gaussian random numbers")
@@ -706,6 +706,89 @@ in 3 dimensions. The set temperature was 136 and the density was given as 0.5 (b
 While the machinery for computing observables and their associated errors is there, more
 effort will be required before we are in a position to compare a multitude of observables
 to literature.
+
+The main issues with out results so far are the following:
+- The PCF does not smooth out at 1 as expected
+- The autocorrelation function for the pressure (second plot) does not show the decaying exponential trend as expected. This may lead to a wrong estimation of the autocorrelation time $\ tau$
+- The thickness of the red line in the third plot shows the error for the average value of the pressure. This clearly underestimates the fluctuations displayed in the plot. Errors ae so far calculated from the autocorrelation time and therefore this result could be related to the previous point.
+
+Here we display the functions used to compute the PCF
+```
+  def pcf_count(distances, numOfBins, boxSize):
+      '''
+      Function to create histcount to compute PCF (Pair Correlation  Function)
+      Accepts: distances: array of particle-particle distances
+               numOfBins: number of bins in hsitogram
+               boxSize: simultion box size
+      Returns: histCount array
+      '''
+      histCount = np.zeros(shape=(numOfBins,))
+      dr = boxSize/numOfBins
+      for j in range(distances.size):
+          i = int(distances[j]//dr)
+          histCount[i] += 1
+      return histCount
+
+  def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False):
+      '''
+      Function to compute and plot PCF (Pair Correlation Function)
+      Accepts: histCount: array pcf histcounts at each timestep shape=(numOfBins,numOfTimesteps)
+               numOfParticles: simulation particles
+               numOfTimesteps: number of timesteps used to compute PCF
+               numOfBins: number of bins in hsitogram
+               boxSize: simultion box size
+      Returns: pcf array
+      '''
+      pcf = np.zeros(shape=(numOfBins,), dtype= float)
+      pcfErr = np.zeros(shape=(numOfBins,), dtype= float)
+      r = np.zeros(shape=(numOfBins,), dtype= float)
+
+      numOfParticlePairs = numOfParticles*(numOfParticles-1)/2
+      V = boxSize**3
+      dr = boxSize/numOfBins
+      for j in range(pcf.size):
+          r[j] = (j + 0.5)*dr
+          rawPCF, rawErrPCF = averageAndError(histCount[:,j])
+          pcf[j]= rawPCF *V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)
+          pcfErr[j] = rawErrPCF *V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)
+      # Plot
+      name = 'pcfN_{}'.format(numOfParticles)
+      fig = plt.figure(name)
+      plt.ioff()
+      plt.errorbar(r, pcf, pcfErr, label='Pair Correlation Function')
+      plt.xlabel('r')
+      plt.ylabel('PCF')
+      plt.grid()
+      fig.suptitle('Pair correlation function', size = 14)
+      plt.show()
+      # Save figure
+      if saveFigures == True:
+          plt.savefig('{}.png'.format(name), dpi=300)
+      return pcf, pcfErr
+```
+For the calculation of the average value of pressure and its error we use the following function created to be used for any observables
+```
+def averageAndError(obs,autoCorr=False, plotAutoCorr=False):
+    '''
+    Function to computer and observable average and error
+    - autoCorr = False (default) assumes statistically independent data
+    - autoCorr = True            rescales with correlation time tau
+
+    Accepts: obs: array of observable values at each time-step
+             numOfTimesteps: number of observable values
+    Returns: avg: avergae of observable
+             sigma: observable error
+    '''
+    obs2 = np.square(obs)
+    avg = np.mean(obs)
+    avg2 = np.mean(obs2)
+    N = obs.size
+    sigma = np.sqrt((avg2 - avg**2)/(N - 1))
+    if autoCorr == True:
+        _, tau = autocorr(obs, plotAutoCorr)
+        sigma = sigma*np.sqrt(2*tau*(N - 1)/N)
+    return avg, sigma
+```
 
 For the report, we are planning on basing our calculated observables off of the 1967 paper
 by Verlet illustrating the thermodynamic properties of molecules interacting under a
