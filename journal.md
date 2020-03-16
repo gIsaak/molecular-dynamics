@@ -639,3 +639,77 @@ Weekly plan:
 - Brennan will clean the code in order to eliminate global variables and make data more accessible to different functions for calculating observables, extensibility, etc.
 - Isacco will implement the calculation of fluctuations and new observables
 - Ludwig will start working on the final report and continue working on observables
+
+
+Progress report:
+
+The Argon simulation is nearing completion, as all milestones for the week have been met up to the extent that some final debugging will need to be done to obtain optimal
+results and agreement with the literature.
+
+In anticipation of the end of the project, it was decided that a revamping of the original codebase would be necessary. This included eliminating some previous
+global variables used for fast prototyping and refactoring some large functions into smaller functions which could be used to more efficiently calculate
+observables. Brennan and Isacco completed this, ensuring that the new code worked up to the standards of the week 4 milestones before proceeding to implement
+the observables.
+
+Isacco prototyped the error calculating with a known dataset. The autocorrelated sequence of Gaussian random numbers is created by 
+the normal\_autocorr() function in the correlated\_random.py script in the repository. The data looks as follows:
+
+![alt text](img/week5/correlated_random_data.png "Autocorrelated Gaussian random numbers")
+
+The fit is performed by the autocorr() function:
+
+'''
+def autocorr(data, plot=True):
+    N_sim = int(data.size) #number of simulation steps
+    chi_length = int(round(np.sqrt(N_sim))) #cutoff at sqrt(N_sim)
+    chi = np.zeros(shape=(chi_length,))
+    for t in range(chi_length):
+        a, b, c = 0, 0, 0
+        for n in range(N_sim - t):
+            a = a + data[n]*data[n+t]
+            b = b + data[n]
+            c = c + data[n+t]
+        chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
+    # Fit
+    xdata = np.arange(chi_length)
+    def func(x, tau, a, b):
+        return np.exp(-(x-a)/tau) + b
+    param, _ = curve_fit(func, xdata, chi)
+    tau = param[0]
+    if plot == True:
+        plt.plot(xdata, chi, 'b-', label='data')
+        # Fit
+        plt.plot(xdata, func(xdata, *param), 'r--', label=r'fit: $\tau$=%5.3f, a=%5.3f, b=%5.3f' % tuple(param))
+        plt.xlabel('t')
+        plt.ylabel(r'$\chi$')
+        plt.title(r'N = %d' % N_sim)
+        plt.legend()
+        plt.show()
+    return chi, tau
+'''
+
+In the case of the data above, the following fit can be obtained:
+
+![alt text](img/week5/correlated_random_fit.png "Autocorrelation fit")
+
+Isacco and Ludwig also developed the pair correlation function and pressure observables respectively.
+
+The following figures were taking from a simulation run with 14 molecules initialized on an FCC lattice
+in 3 dimensions. The set temperature was 136 and the density was given as 0.5 (both in reduced units).
+
+![alt text](img/week5/pcfN_14.png "Pair correlation function")
+
+![alt text](img/week5/N_14_autocorrelation.png "Autocorrelation of Argon molecule separation")
+
+![alt text](img/week5/Pressure.png "Pressure")
+
+While the machinery for computing observables and their associated errors is there, more
+effort will be required before we are in a position to compare a multitude of observables
+to literature.
+
+For the report, we are planning on basing our calculated observables off of the 1967 paper
+by Verlet illustrating the thermodynamic properties of molecules interacting under a
+Lennard-Jones model. We also plan on looking at the correlation function for liquid Argon
+as in Rahman's 1964 paper on the subject. As observables are debugged and made to accurately
+agree, specific heat, diffusion coefficients, and other observables may be added to the report,
+time permitting.
