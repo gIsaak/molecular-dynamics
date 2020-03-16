@@ -173,11 +173,11 @@ def init_position(a,numOfParticles,numOfDimensions,density):
     '''
     func = lambda x : numOfParticles - (x + 1)**3 - 3*x**3 # Find a compatible n
     n = int(np.round(fsolve(func, 1.1))) #1.1 initial guess
-	
+
     # Compute L and exact N
     L = a*n + a # +a to avoid putting particles on boundary
     newNumOfParticles = (n + 1)**3 + 3*(n+1)*n**2
-    
+
     # if statement to adjust lattice constant in case density is specified
     if density != 0:
         a = ((newNumOfParticles/density)**(1/3))/(n+1)
@@ -327,7 +327,7 @@ def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, save
     return pcf
 
 
-def pressure(particleDistances, numOfParticles, boxSize, bathTemperature):
+def pressure(particleDistances):
     '''
     Function to compute pressure at time t
     Accepts: particleDistances: array of particle distances
@@ -453,13 +453,14 @@ def main(MDS_dict):
     ### EQUILIBRATION STEPS ###
     equilibrium = False
     j = 0
+    T_equilibration = 0
     while equilibrium == False:
         i = j%(numOfStoredTimesteps) # overwrite parameter matrix
         i_next = (j+1)%(numOfStoredTimesteps)
         # Evolution
         PC3T[:,:,0,i_next] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep,boxSize)
         particleDistances = getParticleDistanceArray(PC3T[:,:,0,i_next],numOfParticles,numOfDimensions,boxSize)
-        PC3T[:,:,2,i_next], U[j+1] = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
+        PC3T[:,:,2,i_next], _ = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
         PC3T[:,:,1,i_next] = iterateVelocities_Verlet(PC3T[:,:,1,i],PC3T[:,:,2,i],PC3T[:,:,2,i_next],numOfParticles,numOfDimensions,timestep)
         # scatter plot
         if plotting == True:
@@ -470,19 +471,22 @@ def main(MDS_dict):
                     scatterPoints.append(ax.scatter(PC3T[p,0,0,i],PC3T[p,1,0,i],PC3T[p,2,0,i],color=colour))
                 plt.pause(0.000005)
         # Equilibrium control
-        T[i] = getKineticEnergy(PC3T[:,:,1,i],numOfParticles,numOfDimensions)
+        T_equilibration = getKineticEnergy(PC3T[:,:,1,i],numOfParticles,numOfDimensions)
         # check if at equilibrium every equilibrationTimer steps
         # note that 119.8 converts natural energy scale to Kelvin (see week 1 notes)
         # see if temperature agrees to desired temperature within <1> Kelvin. If it does, don't equilibrate
         if i%equilibrationTimer == equilibrationTimer-1:
-            if abs(float(T[i]) / (numOfParticles-1) / (3/2) * 119.8 - bathTemperature) > 1:
-                scalingConstant = getVelocityScalingFactor(T[i],bathTemperature,numOfParticles)
-                PC3T[:,:,1,i] = np.multiply(PC3T[:,:,1,i],scalingConstant) #rescale
-                T[i] = getKineticEnergy(PC3T[:,:,1,i],numOfParticles,numOfDimensions) #update kinetic energy
-                print('Rescaling from temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
+            if abs(float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8 - bathTemperature) > 1:
+                scalingConstant = getVelocityScalingFactor(T_equilibration,bathTemperature,numOfParticles)
+                print('Scaling constant', scalingConstant)
+                PC3T[:,:,1,i_next] = np.multiply(PC3T[:,:,1,i_next],scalingConstant) #rescale
+                T_equilibration = getKineticEnergy(PC3T[:,:,1,i_next],numOfParticles,numOfDimensions) #update kinetic energy
+                print('Rescaling from temperature: ',float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8)
             else:
                 equilibrium = True
-                print('Rescaled temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
+                # Set this configuration as initial configuration
+                PC3T[:,:,:,0] = PC3T[:,:,:,i_next]
+                print('Rescaled temperature: ',float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8)
                 print('From initial temperature: {}'.format(bathTemperature))
                 if plotting == True:
                     plt.title('Equilibrium reached')
@@ -516,7 +520,7 @@ def main(MDS_dict):
                 plt.pause(0.000005)
         #Observables
         pcfCount = pcf_count(particleDistances[:,0], pcfCount, numOfBins, boxSize)
-        P[j] = pressure(particleDistances, numOfParticles, boxSize, bathTemperature)
+        P[j] = pressure(particleDistances)
 
 
 
