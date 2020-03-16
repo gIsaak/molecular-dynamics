@@ -177,8 +177,7 @@ def init_position(a,numOfParticles,numOfDimensions,density):
     # Compute L and exact N
     L = a*n + a # +a to avoid putting particles on boundary
     newNumOfParticles = (n + 1)**3 + 3*(n+1)*n**2
-    print('hi')
-
+    
     # if statement to adjust lattice constant in case density is specified
     if density != 0:
         a = ((newNumOfParticles/density)**(1/3))/(n+1)
@@ -337,12 +336,13 @@ def pressure(particleDistances, numOfParticles, boxSize, bathTemperature):
     Returns: P: pressure
     '''
     P = 0
-    sum = 0
+    S = 0
     for i in range(particleDistances[:,0].size):
         r = particleDistances[i,0]
         invr6 = (1/r)**6 #precomputes (1/r)**6
-        sum = sum + 12* (-2*invr6**2  + invr6)
-    P = (1 - 119.8/(numOfParticles*bathTemperature)*sum)*numOfParticles*bathTemperature/boxSize**3/119.8
+        S = S + 12* (-2*invr6**2  + invr6)
+    #P = (1 - 119.8/(numOfParticles*bathTemperature)*S)
+    P = S
     return P
 
 
@@ -483,6 +483,7 @@ def main(MDS_dict):
             else:
                 equilibrium = True
                 print('Rescaled temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
+                print('From initial temperature: {}'.format(bathTemperature))
                 if plotting == True:
                     plt.title('Equilibrium reached')
         j += 1
@@ -529,6 +530,12 @@ def main(MDS_dict):
     pcfTime = numOfTimesteps - equilibriumTimestep
     pcf = pcf_plot(pcfCount, numOfParticles, pcfTime, numOfBins, boxSize, saveFigures = False)
     # pressure
+    # P gives pressure at each timestep without time avg of prev timesteps
+    P = (1 - 119.8/(3*numOfParticles*bathTemperature)*P)
+    # PP gives mean pressure with time avg
+    PP = (1 - 119.8/(3*numOfParticles*bathTemperature)*np.mean(P))
+    print('pressure is: {}'.format(PP))
+    plt.figure('Pressure')
     plt.plot(P)
     plt.show()
 
