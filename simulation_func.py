@@ -2,8 +2,9 @@ from mpl_toolkits.mplot3d import Axes3D # important for 3d scatter plot
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
+from scipy.optimize import curve_fit
 import os
-
+from itertools import combinations
 ##### Parameters #####
 
 # Lennard-Jones parameters Argon
@@ -11,680 +12,612 @@ import os
 #sigma = 3.405 # Angstrom
 #mass = 39.948*1.66e-27 #Kg
 
+def getKineticEnergy(v,numOfParticles,numOfDimensions):
+    '''
+    Accepts a velocity submatrix v containing all velocity components for all
+    particles. The numbers of particles and dimensions are also passed.
 
-# Get particles positions and velocities
-# particle index p in 0,..,n-1
-def getPXcoord(p,ts):
-    return PC3T[p][0][0][ts]
-def getPYcoord(p,ts):
-    return PC3T[p][1][0][ts]
-def getPZcoord(p,ts):
-    return PC3T[p][2][0][ts]
-def getPXvel(p,ts):
-    return PC3T[p][0][1][ts]
-def getPYvel(p,ts):
-    return PC3T[p][1][1][ts]
-def getPZvel(p,ts):
-    return PC3T[p][2][1][ts]
-
-# Set particles positions and velocities
-# particle index p in 0,..,n-1
-def setPXcoord(val,p,ts):
-    PC3T[p][0][0][ts] = val
-def setPYcoord(val,p,ts):
-    PC3T[p][1][0][ts] = val
-def setPZcoord(val,p,ts):
-    PC3T[p][2][0][ts] = val
-def setPncoord(val,d,p,ts):
-    # set coordinate for arbitrary dimension
-    PC3T[p][d][0][ts] = val
-def setPXvel(val,p,ts):
-    PC3T[p][0][1][ts] = val
-def setPYvel(val,p,ts):
-    PC3T[p][1][1][ts] = val
-def setPZvel(val,p,ts):
-    PC3T[p][2][1][ts] = val
-def setPnvel(val,d,p,ts):
-    # set velocity for arbitrary dimension
-    PC3T[p][d][1][ts] = val
-
-
-def getParticleDistance(p1,p2,ts):
-    # function that returns distance between p1 and p2
-    # at the given timestep "ts"
-    # (returned as a 4-tuple: r,x1-2,y1-2,z1-2)
-    # includes periodic boundary conditions
-    x_dist = getPXcoord(p1,ts) - getPXcoord(p2,ts)
-    y_dist = getPYcoord(p1,ts) - getPYcoord(p2,ts)
-    z_dist = getPZcoord(p1,ts) - getPZcoord(p2,ts)
-    x_dist = (x_dist + L/2)%L - L/2
-    y_dist = (y_dist + L/2)%L - L/2
-    z_dist = (z_dist + L/2)%L - L/2
-
-    r = np.sqrt(x_dist**2 + y_dist**2 + z_dist**2)
-    return r,x_dist,y_dist,z_dist
-
-
-def getTotalEnergy(ts):
-    # calculates sum of potential energy and kinetic energy at the timestep
-    # of particles in a unit cell
-    # Natural units
-    T = 0
-    for i in range(numOfParticles):
-        T = T + getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2
-    E[ts] = U[ts] + T/2
-
-def getKineticEnergy(ts):
+    The funciton returns the kinetic energy as calculated from the submatrix v.
+    '''
     KE = 0
     for i in range(numOfParticles):
-        KE = KE + 0.5*(getPXvel(i,ts)**2 + getPYvel(i,ts)**2 + getPZvel(i,ts)**2)
-    T[ts] = KE
+        for j in range(numOfDimensions):
+            KE = KE + 0.5*v[i,j]**2
+    return KE
 
+def getParticleDistanceArray(x,numOfParticles,numOfDimensions,boxSize):
+    '''
+    Accepts a position submatrix x containing all position components for all
+    particles. The numbers of particles and dimensions as well as box size are
+    also passed.
 
-def getForce(ts):
-    # calculates the force on each particle and
-    # U of the system  at a given timestep
-    
-    particle_distance_counter = 0 # hacky counter for tracking particle pairwise distances at each timestep
-    PE = 0
+    The function returns an array containing the distance between each
+    unique particle pair. The order in which these distances is stored is
+    evident from the loops in this function. By starting at pairIndex = 0:
+        for i in range(numOfParticles):
+            j = 0
+            while j < i:
+                ...
+                <use particleDistances[pairIndex,...]>
+                ...
+                j += 1
+                pairIndex += 1
+
+    For each row of the array particleDistances, the first column stores
+    the total distance, and the subsequent columns store the distance for
+    each dimension, up to a total numOfDimensions components.
+
+    The particleDistances array is returned for use with tracking observables
+    such as pair correlation and for computing the forces acting on each particle.
+    '''
+    # initialize array to store particle-pair distances for all unique pairings
+    # the four columns contain: r (total distance), r_x, r_y, r_z, etc.
+    particleDistances = np.zeros((int((numOfParticles**2-numOfParticles)/2),1+numOfDimensions),dtype=float)
+    pairIndex = 0
+    # we will always iterate over particle pairs as follows for consistency
     for i in range(numOfParticles):
         j = 0
         while j < i:
-            r,rel_x,rel_y,rel_z = getParticleDistance(i,j,ts)
+            r_sq = 0 # total distance squared
+            for k in range(numOfDimensions):
+                dist_component = x[i,k] - x[j,k]
+                dist_component = (dist_component + boxSize/2)%boxSize - boxSize/2
+                particleDistances[pairIndex,k+1] = dist_component
+                r_sq += dist_component**2
+            particleDistances[pairIndex,0] = np.sqrt(r_sq)
+            pairIndex += 1
+            j += 1
+    return particleDistances
+
+def getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize):
+    '''
+    Accepts the particleDistances array computed by getParticleDistanceArray, as well
+    as the numbers of particles and dimensions and box size.
+
+    The function returns a submatrix newF containing the forces acting on the
+    particles given the particleDistances array. The function also calculates
+    the total potential energy in the system and returns this alongside the array.
+    '''
+    pairIndex = 0
+    PE = 0
+    newF = np.zeros((numOfParticles,numOfDimensions),dtype=float)
+    for i in range(numOfParticles):
+        j = 0
+        while j < i:
+            r = particleDistances[pairIndex,0]
             invr6 = (1/r)**6 #precomputes (1/r)**6
             grad = 24/r * (-2*invr6**2  + invr6)
             # Compute forces
-            PC3T[i][0][2][ts] = PC3T[i][0][2][ts] - grad*rel_x/r  #fx particle i
-            PC3T[i][1][2][ts] = PC3T[i][1][2][ts] - grad*rel_y/r  #fy particle i
-            PC3T[i][2][2][ts] = PC3T[i][2][2][ts] - grad*rel_z/r  #fz particle i
-            PC3T[j][0][2][ts] = PC3T[j][0][2][ts] + grad*rel_x/r  #fx particle j
-            PC3T[j][1][2][ts] = PC3T[j][1][2][ts] + grad*rel_y/r  #fy particle j
-            PC3T[j][2][2][ts] = PC3T[j][2][2][ts] + grad*rel_z/r  #fz particle j
+            for k in range(numOfDimensions):
+                newF[i,k] = newF[i,k] - grad*particleDistances[pairIndex,k+1]/r
+                newF[j,k] = newF[j,k] + grad*particleDistances[pairIndex,k+1]/r
+            pairIndex += 1
             j += 1
-            
+
             # Compute Potential Energy
             PE = PE + 4*(invr6**2 - invr6)
-            
-            # add distance to tracked observable particleDistances if equilibrium has been reached
-            particleDistances[particle_distance_counter] = particleDistances[particle_distance_counter] + r
-            particle_distance_counter += 1
-            
-    U[ts] = PE
+    return newF,PE
 
-# Euler algorithm
-def iterateCoordinates(ts):
-    # takes current position and velocity at timestep ts and updates particle coordinates for timestep ts+1
-    if ts + 1 == num_t:
-        next_ts = 0
-    else:
-        next_ts = ts + 1
+def iterateCoordinates_Euler(x,v,numOfParticles,numOfDimensions,timestep,boxSize):
+    '''
+    Accepts 2 submatrices for particle positions (x) and particle velocities (v)
+    as well as numbers of particles and dimensions and the size of the timestep.
+    The function returns a new submatrix newX containing the Euler-time-evolved
+    positions at the next timestep.
+    '''
 
+    # create array of new particle positions according to Euler time evolution
+    newX = np.zeros((numOfParticles,numOfDimensions),dtype=float)
     for i in range(numOfParticles):
-        newPXcoord = (getPXcoord(i,ts) + getPXvel(i,ts)*timestep)%L
-        newPYcoord = (getPYcoord(i,ts) + getPYvel(i,ts)*timestep)%L
-        newPZcoord = (getPZcoord(i,ts) + getPZvel(i,ts)*timestep)%L
+        for j in range(numOfDimensions):
+            newX = (x[i,j] + v[i,j]*timestep)%boxSize
+    return newX
 
-        setPXcoord(newPXcoord,i,next_ts)
-        setPYcoord(newPYcoord,i,next_ts)
-        setPZcoord(newPZcoord,i,next_ts)
+def iterateVelocities_Euler(v,f,numOfParticles,numOfDimensions,timestep):
+    '''
+    Accepts 2 submatrices for particle velocities (v) and particle forces (f)
+    as well as numbers of particles and dimensions and the size of the timestep.
+    The function returns a new submatrix newV containing the Euler-time-evolved
+    velocities at the next timestep.
+    '''
 
-# Euler algorithm
-def iterateVelocities(ts):
-    # takes current velocity and force at timestep ts and updates particle velicities for timestep ts+1
-    if ts + 1 == num_t:
-        next_ts = 0
-    else:
-        next_ts = ts + 1
-
-    getForce(ts)
+    newV = np.zeros((numOfParticles,numOfDimensions),dtype=float)
     for i in range(numOfParticles):
-        newPXvel = getPXvel(i,ts) + PC3T[i][0][2][ts]*timestep
-        newPYvel = getPYvel(i,ts) + PC3T[i][1][2][ts]*timestep
-        newPZvel = getPZvel(i,ts) + PC3T[i][2][2][ts]*timestep
-
-        setPXvel(newPXvel,i,next_ts)
-        setPYvel(newPYvel,i,next_ts)
-        setPZvel(newPZvel,i,next_ts)
+        for j in range(numOfDimensions):
+            newV = (v[i,j]+f[i,j]*timestep)
+    return newV
 
 # Verlet algorithm
-def iterateCoordinates_Verlet(ts):
-    # takes current position, velocity and force at timestep ts and
-    # updates particle coordinates for timestep ts+1
-    if ts + 1 == num_t:
-        next_ts = 0
-    else:
-        next_ts = ts + 1
+def iterateCoordinates_Verlet(x,v,f,numOfParticles,numOfDimensions,timestep,boxSize):
+    '''
+    Accepts 3 submatrices for particle positions (x), particle velocities (v), and
+    particle forces (f) as well as numbers of particles and dimensions and the size of the timestep
+    and the box size. The function returns a new submatrix newX containing the Verlet-time-evolved
+    positions at the next timestep.
+    '''
     # To avoid redundant computations getForce is only called once per timestep in
     # iterateVelocities_Verlet
-    #getForce(ts)
+    newX = np.zeros((numOfParticles,numOfDimensions),dtype=float)
     for i in range(numOfParticles):
-        newPXcoord = (getPXcoord(i,ts) + getPXvel(i,ts)*timestep + \
-                            0.5*PC3T[i][0][2][ts]*timestep**2)%L
-        newPYcoord = (getPYcoord(i,ts) + getPYvel(i,ts)*timestep + \
-                            0.5*PC3T[i][1][2][ts]*timestep**2)%L
-        newPZcoord = (getPZcoord(i,ts) + getPZvel(i,ts)*timestep + \
-                            0.5*PC3T[i][2][2][ts]*timestep**2)%L
-
-        setPXcoord(newPXcoord,i,next_ts)
-        setPYcoord(newPYcoord,i,next_ts)
-        setPZcoord(newPZcoord,i,next_ts)
+        for j in range(numOfDimensions):
+            newX[i,j] = (x[i,j] + v[i,j]*timestep + \
+                            0.5*f[i,j]*timestep**2)%boxSize
+    return newX
 
 # Verlet algorithm
-def iterateVelocities_Verlet(ts):
-    # takes current velocity and force at timestep ts and ts+1
-    # and updates particle velicities for timestep ts+1
-    # changed if condition to ts+2 due to need to force at ts+1 for updating velocities
-    if ts + 1 == num_t:
-        next_ts = 0
-    else:
-        next_ts = ts + 1
-
-    # Position at time ts+1 should already be stored in memory by previous call of
-    # iterateCoordinates_Verlet(ts)
-
-    # Get force at time ts+1
-    getForce(ts+1)
+def iterateVelocities_Verlet(v,f,nextf,numOfParticles,numOfDimensions,timestep):
+    '''
+    Accepts 3 submatrices for particle velocities (v), particle forces at the same
+    timestep as v (f), and particle forces at the timestep after v (nextf) as well
+    as numbers of particles and dimensions and the size of the timestep
+    The function returns a new submatrix newV containing the Verlet-time-evolved
+    velocities at the next timestep.
+    '''
+    newV = np.zeros((numOfParticles,numOfDimensions),dtype=float)
     for i in range(numOfParticles):
-        newPXvel = getPXvel(i,ts) + 0.5*timestep*(PC3T[i][0][2][ts] + PC3T[i][0][2][ts+1])
-        newPYvel = getPYvel(i,ts) + 0.5*timestep*(PC3T[i][1][2][ts] + PC3T[i][1][2][ts+1])
-        newPZvel = getPZvel(i,ts) + 0.5*timestep*(PC3T[i][2][2][ts] + PC3T[i][2][2][ts+1])
+        for j in range(numOfDimensions):
+            newV[i,j] = v[i,j] + 0.5*timestep*(f[i,j] + nextf[i,j])
+    return newV
 
-        setPXvel(newPXvel,i,next_ts)
-        setPYvel(newPYvel,i,next_ts)
-        setPZvel(newPZvel,i,next_ts)
+def init_position(a,numOfParticles,numOfDimensions,density):
+    '''
+    Accepts lattice constant (a), numOfParticles, numOfDimensions
+    Returns a submatrix newX of particles positions on fcc lattice
+    as well as new number of particles (newNumOfParticles) and box size (L)
+    !!! ONLY WORKS IN 3D !!!
 
-def init_position(ts):
-    # Initializes particles into fcc lattice
-    # for a given n = L/a, an fcc compatible number of particles is
-    # N = (n + 1)**3 + 3*(n+1)*n**2
-    # The initialization rounds N to the closest fcc compatible N
-    # a is kept constant and L is calculated as
-    # L = a*n + a with updated N
+    For a given n = L/a, an fcc compatible number of particles is
+    N = (n + 1)**3 + 3*(n+1)*n**2
+    The initialization rounds the user specified N to the closest fcc compatible N.
+    a is kept constant and L is calculated as
+    L = a*n + a with updated N
+    '''
+    func = lambda x : numOfParticles - (x + 1)**3 - 3*x**3 # Find a compatible n
+    n = int(np.round(fsolve(func, 1.1))) #1.1 initial guess
 
-    global PC3T
-    global numOfParticles
-    global L
-
-    # Find a compatible n
-    func = lambda x : numOfParticles - (x + 1)**3 - 3*x**3
-    n = int(np.round(fsolve(func, 1.1)))
     # Compute L and exact N
     L = a*n + a # +a to avoid putting particles on boundary
-    numOfParticles = (n + 1)**3 + 3*(n+1)*n**2
+    newNumOfParticles = (n + 1)**3 + 3*(n+1)*n**2
 
-    # Reinitialize PC3T (in case N is bigger than the input N)
-    PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
+    # if statement to adjust lattice constant in case density is specified
+    if density != 0:
+        a = ((newNumOfParticles/density)**(1/3))/(n+1)
+        L = a*n + a # +a to avoid putting particles on boundary
+    print('Density: {}\nNumber N: {}\nLattice const: {}'.format(newNumOfParticles/(L**3),newNumOfParticles,a))
 
+    newX = np.zeros((newNumOfParticles,numOfDimensions), dtype=float)
+    p = 0 # particle index
     # Put particles on cubic lattice
     for i in range(n+1): # loop over z
         for j in range(n+1): # loop over y
-            for k in range(n+1): # loop over x
-                p = i*(n+1)**2 + j*(n+1) + k #particle index, (n+1)**3 total on the cubic lattice
-                setPXcoord(k*a + a/2,p,ts) #a/2 avoids putting particles on boundary
-                setPYcoord(j*a + a/2,p,ts)
-                setPZcoord(i*a + a/2,p,ts)
+            for k in range(n+1): # loop over xe
+                newX[p,0] = k*a + a/2  #a/2 avoids putting particles on boundary
+                newX[p,1] = j*a + a/2
+                newX[p,2] = i*a + a/2
+                p += 1
     # Put particles on xz faces
     for i in range(n): # loop over z
         for j in range(n+1): # loop over y
             for k in range(n): # loop over x
-                p = (n+1)**3 + i*n*(n+1) + j*n + k #particle index, (n+1)*n**2 on x faces
-                setPXcoord(k*a + a,p,ts)
-                setPYcoord(j*a + a/2,p,ts)
-                setPZcoord(i*a + a,p,ts)
+                newX[p,0] = k*a + a
+                newX[p,1] = j*a + a/2
+                newX[p,2] = i*a + a
+                p += 1
     # Put particles on yz faces
     for i in range(n): # loop over z
         for j in range(n): # loop over y
             for k in range(n+1): # loop over x
-                p = (n+1)**3 + (n+1)*n**2 + i*n*(n+1) + j*(n+1) + k #particle index, (n+1)*n**2 on yz faces
-                setPXcoord(k*a + a/2,p,ts)
-                setPYcoord(j*a + a,p,ts)
-                setPZcoord(i*a + a,p,ts)
+                newX[p,0] = k*a + a/2
+                newX[p,1] = j*a + a
+                newX[p,2] = i*a + a
+                p += 1
     # Put particles on xy faces
     for i in range(n+1): # loop over z
         for j in range(n): # loop over y
             for k in range(n): # loop over x
-                p = (n+1)**3 + 2*(n+1)*n**2 + i*n*n + j*n + k #particle index, (n+1)*n**2 on xy faces
-                setPXcoord(k*a + a,p,ts)
-                setPYcoord(j*a + a,p,ts)
-                setPZcoord(i*a + a/2,p,ts)
+                newX[p,0] = k*a + a
+                newX[p,1] = j*a + a
+                newX[p,2] = i*a + a/2
+                p += 1
+    return newX, newNumOfParticles, L
 
-def gaussVel(temp,ts):
+def gaussVel(temp, numOfParticles, numOfDimensions):
     '''
-    Function to initialize particles velocity components according to Gaussian distribution.
-    A function called velocityAVG is called for each velocity component array to ensure the avg velocity to be zero.
-
-    Parameters
-    -------------------------
-    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
-    the average of each velocity component array is zero.
+    Accepts temperature (temp), numOfParticles, numOfDimensions
+    Returns submatrix newV of velocity components per particle initialized
+    according to Gaussian distribution.
+    The mean value of each velocity component array is set to zero.
     '''
-    global PC3T
-
+    newV = np.zeros((numOfParticles,numOfDimensions), dtype=float)
+    # Distribution parameters
     mu, sigma = 0, np.sqrt(temp/119.8) # mean is 0 and standard deviation in Kelvin
-    vx = np.random.normal(mu, sigma, numOfParticles)
-    vy = np.random.normal(mu, sigma, numOfParticles)
-    vz = np.random.normal(mu, sigma, numOfParticles)
-    # set mean to zeros
-    vx = vx - np.mean(vx)
-    vy = vy - np.mean(vy)
-    vz = vz - np.mean(vz)
-    print(vx)
-    # load into PC3T
-    for i in range(numOfParticles):
-        setPXvel(vx[i],i,ts)
-        setPYvel(vy[i],i,ts)
-        setPZvel(vz[i],i,ts)
+    for i in range(numOfDimensions):
+        v_i = np.random.normal(mu, sigma, numOfParticles)
+        newV[:,i] = v_i - np.mean(v_i)
+    return newV
 
-def velocityAVG(a):
+
+def getVelocityScalingFactor(KE,bathTemperature,numOfParticles):
     '''
-    Function to set the mean value of the component velocities close to zero by adjusting each velocity
+    Function accepts a kinetic energy and desired system temperature, and returns
+    the appropriate value by which all velocity components should be scaled such
+    that the system can equilibrate to the given temperature.
+
+    The rescalingConstant should be multiplied to the present velocity components
+    using np.multiply(array,rescalingConstant)
+    '''
+    # calculate the rescaling
+    sum_of_m_vi_squared = 2*float(KE)
+    rescalingConstant = np.sqrt((numOfParticles-1)*3*bathTemperature/119.8/sum_of_m_vi_squared)
+    return rescalingConstant
+
+# TODO: make in one plot
+def plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T):
+    '''
+    Creates plot for Kinetic Energy, Potential energy and Total energy.
+    Plot title/name/saving/etc is handled given the parameters set in main.py
+
+    The plots will show all energies at all steps, including before the
+    desired equilibrium temperature has been reached.
+    '''
+    # Figure name
+    name = 'Eplot_N_{}'.format(numOfParticles)
+    fig = plt.figure(name)
+    plt.ioff()
+    time = np.arange(0, numOfTimesteps*timestep, timestep)
+    plt.plot(time, U[0:-1],color='m',label='Potential Energy')
+    plt.plot(time, T[0:-1],color='g',label='Kinetic Energy')
+    plt.plot(time, U[0:-1]+T[0:-1] ,color='b',label='Total Energy')
+    plt.xlabel('t')
+    plt.ylabel('Energy')
+    plt.legend()
+    plt.grid()
+    fig.suptitle('{} particles, dt = {}'.format(numOfParticles,timestep), size = 14)
+    plt.show()
+    # Save figure
+    if saveFigures == True:
+        plt.savefig('{}.png'.format(name), dpi=300)
+
+def autocorr(data, plot=True):
+    '''
+    Computes autocorrelation function for an observable
+
+    Autocorrelation function as calculated in the lecutre notes (week 5)
+    The cutoff for t is given by t = sqrt(N_sim)
+    Autocorrelation length tau is computed fitting the curve to
+    exp(-(t-a)/tau) + b
 
     Parameters
-    -------------------------
-    a   np.array holding velocity components
+    ----------
 
-    Return
-    -------------------------
-    vx,vx,vz as numpy arrarys of length N holding velocity components for N atoms
-    the average of each velocity component array is zero.
+    data: numpy array
+        value of observable at each timestep
+
+    Returns:
+    --------
+    chi: numpy array
+        autocorrelation function
+    tau: float
+        autocorrentaion length
     '''
-    x = np.mean(a)
-    while not -0.01 < x < 0.01:
-        a = a -(np.sum(a)/len(a))
-        x = np.mean(a)
-    return a
+    N_sim = int(data.size) #number of simulation steps
+    chi_length = int(round(np.sqrt(N_sim))) #cutoff at sqrt(N_sim)
+    chi = np.zeros(shape=(chi_length,))
+    for t in range(chi_length):
+        a, b, c = 0, 0, 0
+        for n in range(N_sim - t):
+            a = a + data[n]*data[n+t]
+            b = b + data[n]
+            c = c + data[n+t]
+        chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
+    # Fit
+    xdata = np.arange(chi_length)
+    def func(x, tau, a, b):
+        return np.exp(-(x-a)/tau) + b
+    param, _ = curve_fit(func, xdata, chi)
+    tau = param[0]
+    if plot == True:
+        plt.plot(xdata, chi, 'b-', label='data')
+        # Fit
+        plt.plot(xdata, func(xdata, *param), 'r--', label=r'Autocorrelation $\tau$=%5.3f, a=%5.3f, b=%5.3f' % tuple(param))
+        plt.xlabel('t')
+        plt.ylabel(r'$\chi$')
+        plt.title(r'N = %d' % N_sim)
+        plt.legend()
+        plt.show()
+    return chi, tau
 
-def scaleParticleVelocities(ts):
-    # uses global variable temp to rescale velocities (all particles, all dimensions)
-    # according to the current kinetic energy at the given timestep ts
-    
-    # calculate the rescaling
-    sum_of_m_vi_squared = 2*float(T[ts])
-    
-    rescalingConstant = np.sqrt((numOfParticles-1)*3*temp/119.8/sum_of_m_vi_squared)
-    
-    # multiply all velocity components for all particles by this value
-    PC3T[:,:,1,ts] = np.multiply(PC3T[:,:,1,ts], rescalingConstant)
-    #print('Rescaling constant: ', rescalingConstant)
+def averageAndError(obs,autoCorr=False, plotAutoCorr=False):
+    '''
+    Function to computer and observable average and error
+    - autoCorr = False (default) assumes statistically independent data
+    - autoCorr = True            rescales with correlation time tau
 
-def initializeParticles(ts):
-    # creates a random position and velocity for each particle at the given
-    # timestep ts
-    #
-    # particle positions are generated to be distributed around the box such that no 2 particles
-    # begin to close to each other; this is done by slicing the box in the first
-    # dimension (L/numOfParticles) and only allowing 1 particle to exist in each slice
-    #
-    # particle velocities are chosen randomly in magnitude and direction, with
-    # the condition that no initial velocity is faster than some fraction the width of
-    # the box per timestep
+    Accepts: obs: array of observable values at each time-step
+             numOfTimesteps: number of observable values
+    Returns: avg: avergae of observable
+             sigma: observable error
+    '''
+    obs2 = np.square(obs)
+    avg = np.mean(obs)
+    avg2 = np.mean(obs2)
+    N = obs.size
+    sigma = np.sqrt((avg2 - avg**2)/(N - 1))
+    if autoCorr == True:
+        _, tau = autocorr(obs, plotAutoCorr)
+        sigma = sigma*np.sqrt(2*tau*(N - 1)/N)
+    return avg, sigma
 
-    # this variable limits how fast the particles can initially move
-    # for example, 10 means that the particles can move no further than 1/10
-    # the length of the box per timestep
+def pcf_count(distances, numOfBins, boxSize):
+    '''
+    Function to create histcount to compute PCF (Pair Correlation  Function)
+    Accepts: distances: array of particle-particle distances
+             numOfBins: number of bins in hsitogram
+             boxSize: simultion box size
+    Returns: histCount array
+    '''
+    histCount = np.zeros(shape=(numOfBins,))
+    dr = boxSize/numOfBins
+    for j in range(distances.size):
+        i = int(distances[j]//dr)
+        histCount[i] += 1
+    return histCount
 
-    # this variable is now included in main.py
-    maxInitialSpeedParameter = 1000
+def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False):
+    '''
+    Function to compute and plot PCF (Pair Correlation Function)
+    Accepts: histCount: array pcf histcounts at each timestep shape=(numOfBins,numOfTimesteps)
+             numOfParticles: simulation particles
+             numOfTimesteps: number of timesteps used to compute PCF
+             numOfBins: number of bins in hsitogram
+             boxSize: simultion box size
+    Returns: pcf array
+    '''
+    pcf = np.zeros(shape=(numOfBins,), dtype= float)
+    pcfErr = np.zeros(shape=(numOfBins,), dtype= float)
+    r = np.zeros(shape=(numOfBins,), dtype= float)
 
-    dim_components = np.zeros((numOfDimensions,1),dtype=float)
-
-    for i in range(0,numOfParticles):
-        # first generate positions in each dimension
-        dim_components = np.random.rand(numOfDimensions,1)*L # scale to sizeOfBox
-        dim_components[0] = dim_components[0]/numOfParticles/1.1 + i/L # slice in dimension 1 to separate particles initially (1.1 gives space between "sliced" regions)
-        # pass vector to method to fill parameter matrix:
-        # arguments: random vector, particle number, coord/vel, timestep
-        addToParameterMatrix(dim_components,i,0,ts)
-
-        # next generate velocities in each dimension, limited according to maxInitialSpeedParameter above
-        dim_components = np.random.rand(numOfDimensions,1)/np.sqrt(numOfDimensions)*L/timestep/maxInitialSpeedParameter
-        # scale velocities to be either positive or negative
-        dim_components = dim_components*2 - L/timestep/maxInitialSpeedParameter/np.sqrt(numOfDimensions)
-        addToParameterMatrix(dim_components,i,1,ts)
-
-def addToParameterMatrix(dim_components,pnum,xv,ts):
-    # treat this  as Protected method
-    #
-    # function called by initializePartciels() to load randomly generated initial
-    # positions/velocities into parameter matrix
-
-    if xv == 0:
-        # load positions
-        for d in range(0,len(dim_components)):
-            setPncoord(dim_components[d],d,pnum,ts)
-    elif xv == 1:
-        # load velocities
-        for d in range(0,len(dim_components)):
-            setPnvel(dim_components[d],d,pnum,ts)
-
-def plotEnergy(MDS_dict):
-
-    ##### Plots #########
-    # Euler
-    if MDS_dict['euler'] == True:
-        name = 'MDS_{}p_{}'.format(MDS_dict['numOfParticles'],'euler')
-        fig = plt.figure(name)
-    # Verlet
-    else:
-        name = 'MDS_{}p_{}'.format(MDS_dict['numOfParticles'],'verlet')
-        fig = plt.figure(name)
-
+    numOfParticlePairs = numOfParticles*(numOfParticles-1)/2
+    V = boxSize**3
+    dr = boxSize/numOfBins
+    for j in range(pcf.size):
+        r[j] = (j + 0.5)*dr
+        rawPCF, rawErrPCF = averageAndError(histCount[:,j])
+        pcf[j]= rawPCF *V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)
+        pcfErr[j] = rawErrPCF *V/numOfParticlePairs/(4*np.pi*dr*r[j]**2)
+    # Plot
+    name = 'pcfN_{}'.format(numOfParticles)
+    fig = plt.figure(name)
     plt.ioff()
-    time = np.arange(0, num_t*timestep, timestep)
-    a = fig.subplots(2,2)
-    #a[0][0].plot(time[0:-2],particleDistances[0:-2],color='r',label = 'Inter-particle distance')
-    #a[0][0].set_ylabel('Particle Distance')
-    #a[0][0].set_xlabel('time')
-    a[0][1].plot(time[0:-2], U[0:-2],color='m',label='Potential Energy')
-    a[0][1].set_ylabel('Potential Energy')
-    a[0][1].set_xlabel('time')
-    a[0][1].set_ylim(-5*numOfParticles,5*numOfParticles)
-    a[1][0].plot(time[0:-2], T[0:-2],color='g',label='Kinetic Energy')
-    a[1][0].set_ylabel('Kinetic Energy')
-    a[1][0].set_xlabel('time')
-    a[1][0].set_ylim(0,5*numOfParticles)
-    a[1][1].plot(time[0:-2], (U[0:-2]+T[0:-2]),color='b',label='Total Energy')
-    a[1][1].set_ylabel('Total Energy')
-    a[1][1].set_xlabel('time')
-    a[1][1].set_ylim(0,5*numOfParticles)
-    a[0][0].grid()
-    a[0][1].grid()
-    a[1][0].grid()
-    a[1][1].grid()
-    # Euler
-    if MDS_dict['euler'] == True:
-        fig.suptitle('Euler - {} particles, dt = {}'.format(MDS_dict['numOfParticles'],
-                          MDS_dict['timestep']), size = 14)
-    # Verlet
-    else:
-        fig.suptitle('Velocity-Verlet - {} particles, dt = {}'.format(MDS_dict['numOfParticles'],
-                          MDS_dict['timestep']), size = 14)
+    plt.errorbar(r, pcf, pcfErr, label='Pair Correlation Function')
+    plt.xlabel('r')
+    plt.ylabel('PCF')
+    plt.grid()
+    fig.suptitle('Pair correlation function', size = 14)
     plt.show()
-
-    if MDS_dict['save_fig'] == True:
-#        path = os.getcwd()
-        plt.savefig('{}.png'.format(name), dpi=150)
-
-    #print('Initial Energy:', E[0],'\nFinal Energy', E[-2])
-
-def dictTester(D):
-
-#    try:
-#        D['euler'] or D['verlet'] == False
-#    except ValueError as err:
-##        sys.stderr.write("{}: Cannot open file {}: {}\ n".format(sys.argv[0], filename, err ))
-#        print('{} Only one method at a time coputable.'.format(err))
-#        sys.exit(1)
-    if (D['euler'] and D['verlet']) or (not D['euler'] and not D['verlet']):
-      raise ValueError('Only one method at a time computable.')
-
-    if D['init_particles'] == 'debug_2' and D['numOfParticles'] != 2 :
-      raise ValueError('Debug_2 assigns positions for 2 particles. \
-                       Use another initialisation method for more particles.')
+    # Save figure
+    if saveFigures == True:
+        plt.savefig('{}.png'.format(name), dpi=300)
+    return pcf, pcfErr
 
 
+def pressure(particleDistances):
+    '''
+    Function to compute pressure at time t
+    Accepts: particleDistances: array of particle distances
+             numOfParticles: numbeer of particles in the simulation
+             bathTemperature: temperature
+    Returns: P: pressure
+    '''
+    P = 0
+    S = 0
+    for i in range(particleDistances[:,0].size):
+        r = particleDistances[i,0]
+        invr6 = (1/r)**6 #precomputes (1/r)**6
+        S = S + 12* (-2*invr6**2  + invr6)
+    #P = (1 - 119.8/(numOfParticles*bathTemperature)*S)
+    P = S
+    return P
 
-#
-#    MDS_parameters = {
-#'euler' :           False,
-#'verlet' :          True,
-#'boxSize_L' :       5,
-#'numOfParticles' :  2,
-#'numOfDimensions' : 3,
-#'num_t' :           200,
-#'timestep' :        0.001,
-#'plotting':         True,
-#'plot_counter' :    1,
-#'energyPlot' :      True,
-#'init_particles' :  'debug_2'
-#}
 
 ################# Begin main program ########################
 
 def main(MDS_dict):
 
-    dictTester(MDS_dict)
+    #######################
+    ### Load Parameters ###
+    #######################
 
-    # setting of the used parameters stored in dictionary
-    global L
-    global a
-    L = MDS_dict['boxSize_L'] # size of each periodic unit cell L (in units of sigma)
-    a = MDS_dict['latticeConst'] # lattice constant
-    # init_position will overwrite L when called
-
-    global numOfParticles
-    global numOfDimensions
-    numOfParticles = MDS_dict['numOfParticles'] # 2 particles
-    numOfDimensions = MDS_dict['numOfDimensions'] # 3D
-
-    global temp
-    temp = MDS_dict['temp'] #temperature
-
-    global num_t
-    global timestep
-    num_t = MDS_dict['num_t']
+    # Load parameters from dictionary into simulation
+    numOfTimesteps = MDS_dict['number_of_timesteps']
     timestep = MDS_dict['timestep']
-
-    global plotting
-    global plot_counter
+    initParticles = MDS_dict['init_particles']
+    latticeConstant = MDS_dict['lattice_constant']
+    boxSize = MDS_dict['box_size']
+    numOfParticles = MDS_dict['number_of_particles']
+    numOfDimensions = MDS_dict['number_of_dimensions']
+    bathTemperature = MDS_dict['bath_temperature']
     plotting = MDS_dict['plotting']
-    plot_counter = MDS_dict['plot_counter']
+    plotCounter = MDS_dict['plot_counter']
+    energyPlot = MDS_dict['energy_plot']
+    saveFigures = MDS_dict['save_figures']
+    density = MDS_dict['density']
 
-    init_particles = MDS_dict['init_particles']
+    pairCorrelation = MDS_dict['pair_correlation']
+    # TODO load other observable flags
 
+    #############################
+    ### Simulation Parameters ###
+    #############################
+
+    # set simulation constants
+    # number of timesteps stored before overwriting position, velocity, force data
+    numOfStoredTimesteps = 100
+    # number of unique particle pairs
+    numberOfPairwiseInteractions = numOfParticles*(numOfParticles-1)/2
+    # variable to track simulation equilibrium
+    equilibriumTimestep = -1
+    # number of timesteps before equilibration
+    equilibrationTimer = 20
+
+    # initialize memory for plotting
+    scatterPoints = []
+    colours = ['b','g','r','c','m','y','k','w']
+
+    ########################
+    ### Simulation Setup ###
+    ########################
 
     # Create n x d x 3 numpy array of floats "PC3T" to store n particles
     # P = particle, C = coordinate (x, y or z), 3 = (position,velocity, force), T = timestep
-    # in d dimensions with 3 (position, velocity and force) parameters, and num_t timesteps stored.
+    # in d dimensions with 3 (position, velocity and force) parameters
+    # The number of timesteps stored is specified by numOfStoredTimesteps.
+    # Upon reaching this limit, the matrix will loop to the beginning and overwrite
+    # old parameters.
 
     # For example, access particle 2's position in the y-direction at time_step=0 as
     # PC3T[1][1][0][0]
     # Access particle 1's momentum in the x-direction at time_step=1 as
     # PC3T[0][0][1][1]
+    # Initialization later
+    #PC3T = np.zeros((numOfParticles,numOfDimensions,3,numOfStoredTimesteps), dtype=float)
 
-    global PC3T
-    PC3T = np.zeros((numOfParticles,numOfDimensions,3,num_t), dtype=float)
-
-    # Initialize potential energy matrix U and total energy E
-    # for tracking potential and total energy at each timestep
-    global U
-    global E
-    global T
-    U = np.zeros((num_t,1), dtype=float)
-    E = np.zeros((num_t,1), dtype=float)
-    T = np.zeros((num_t,1), dtype=float)
-    
-    # keep track of particle distance, potential energy, and kinetic energy
-    global particleDistances # to compute pair correlation function
-    numberOfPairwiseInteractions = numOfParticles*(numOfParticles-1)/2
+    # Initialize matrices to hold potential and kinetic energies, U and T respectively.
+    # These arrays are of length numOfTimesteps as they track the entire simulation
+    U = np.zeros((numOfTimesteps+1,1), dtype=float)
+    T = np.zeros((numOfTimesteps+1,1), dtype=float)
     particleDistances = np.zeros((int(numberOfPairwiseInteractions),1), dtype=float)
 
-    ##### Set initial positions/velocities for all particles ####
-    if init_particles == 'fcc':
-        init_position(0)
-        gaussVel(temp,0)
-        #if plotting = True:
-            # TODO Plot histogram of initial velocities
-                
-    elif init_particles == 'random':
-        initializeParticles(0)
-    elif init_particles == 'debug_2':
-        # Particle 1
-        setPXcoord(L/2-0.5,0,0)
-        setPYcoord(L/2,0,0)
-        setPZcoord(0,0,0)
-        setPXvel(0.5,0,0)
-        setPYvel(0,0,0)
-        setPZvel(0,0,0)
-        # Particle 2
-        setPXcoord(L/2+0.5,1,0)
-        setPYcoord(L/2,1,0)
-        setPZcoord(0,1,0)
-        setPXvel(-0.5,1,0)
-        setPYvel(0,1,0)
-        setPZvel(0,1,0)
-        # Particle 3
-#        setPXcoord(3*L/4,2,0)
-#        setPYcoord(3*L/4,2,0)
-#        setPZcoord(L/2,0,0)
-#        setPXvel(0,1,0)
-#        setPYvel(0,1,0)
-#        setPZvel(0,1,0)
-    elif init_particles == 'debug_3':
-        # Particle 1
-        setPXcoord(L/2-0.5,0,0)
-        setPYcoord(L/2,0,0)
-        setPZcoord(0,0,0)
-        setPXvel(0.5,0,0)
-        setPYvel(0,0,0)
-        setPZvel(0,0,0)
-        # Particle 2
-        setPXcoord(L/2+0.5,1,0)
-        setPYcoord(L/2,1,0)
-        setPZcoord(0,1,0)
-        setPXvel(-0.5,1,0)
-        setPYvel(0,1,0)
-        setPZvel(0,1,0)
-        # Particle 3
-        setPXcoord(L/2,2,0)
-        setPYcoord(L/2+0.5,2,0)
-        setPZcoord(0,0,0)
-        setPXvel(0,1,0)
-        setPYvel(0.5,1,0)
-        setPZvel(0,1,0)
-    else:
-        print('choose appropriate string for particle initialisation: \n\
-              {} \n{}\n{}'.format('fcc','random','debug_3'))
 
-
-    ##### Simulation #####
+    # set initial positions/velocities for all particles according to user selection
+    if initParticles == 'fcc':
+        numOfDimensions = 3 # Always use 3 dimensions (program hardcoded)
+        # place particles on fcc lattice and initialize velocities with M-B distribution
+        initialX, numOfParticles, boxSize = init_position(latticeConstant, numOfParticles, numOfDimensions,density)
+        initialV = gaussVel(bathTemperature, numOfParticles, numOfDimensions)
+        PC3T = np.zeros((numOfParticles,numOfDimensions,3,numOfStoredTimesteps), dtype=float)
+        PC3T[:,:,0,0] = initialX
+        PC3T[:,:,1,0] = initialV
+        particleDistances = getParticleDistanceArray(PC3T[:,:,0,0],numOfParticles,numOfDimensions,boxSize)
+        PC3T[:,:,2,0], U[0] = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
+    elif initParticles == 'random':
+        raise Exception('Not coded yet')
+    elif initParticles == 'debug':
+        raise Exception('Not coded yet')
 
     if plotting == True:
+        # set up scatter plot for displaying particle motion
         fig = plt.figure()
         ax = fig.add_subplot(111, projection='3d')
-        scatterPoints = [] # hold scatter plot data for each particle
-        colours = ['b','g','r','c','m','y','k','w']
-        for p in range(0,numOfParticles):
+        for p in range(numOfParticles):
             colour = colours[p%7]
-            scatterPoints.append(ax.scatter(getPXcoord(p,0),getPYcoord(p,0),getPZcoord(p,0),color=colour))
-        ax.set_xlim((0,L))
-        ax.set_ylim((0,L))
-        ax.set_zlim((0,L))
+            scatterPoints.append(ax.scatter(PC3T[p,0,0,0],PC3T[p,1,0,0],PC3T[p,2,0,0],color=colour))
+        ax.set_xlim((0,boxSize))
+        ax.set_ylim((0,boxSize))
+        ax.set_zlim((0,boxSize))
         plt.ion()
         plt.show()
         plt.pause(0.01)
 
-    # vp1 and vp2 to keep track of the distances
-    vp1 = np.zeros(num_t)
-    vp2 = np.zeros(num_t)
 
-    # TODO figure out a solution for the wrap around of timestep index
+    ##################
+    ### Simulation ###
+    ##################
 
-    # use iteration in range(num_t) and iterateCoordinates for euler method
-    # use iteration in range(num_t-1) due to need of "future" force in Verlet algorithm
-
-    # TODO find a better implementation of this
-
-    # REMOVE THIS FOR EULER METHOD
-    # Get forces for initial positions
-    if MDS_dict['verlet'] == True:
-        getForce(0)
-        
-    
-    # IF YOU WANT TO EQUILIBRATE THE SYSTEM, CHANGE equilibrium_timestep TO -1
-    equilibrium_timestep = -1; 
-    for j in range(num_t-1):
-        i = j%(num_t-1) # don't go over indices of PC3
-        
-        # First calculate kinetic energy at the given timestep
-        getKineticEnergy(i)
-        
-        # Equilibrate every 0.1 seconds in unitless time, if required
-        if i%30 == 29:
-            # check if at equilibrium, note that 119.8 converts natural energy scale to Kelvin (see week 1 notes)
-            # see if temperature agrees to desired temperature within <1> Kelvin. If it does, don't equilibrate
-            if equilibrium_timestep == -1:
-                if abs(float(T[i]) / (numOfParticles-1) / (3/2) * 119.8 - temp) > 1:
-                    # we need to equilibrate
-                    # scale all particle velocities
-                    scaleParticleVelocities(i)
-                    print('Rescaling from temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
-                else:
-                    # we can use equilibrium_timestep as the beginning index for calculating observables
-                    equilibrium_timestep = i
-                    getKineticEnergy(i)
-                    print('Rescaled temperature: ',float(T[i]) / (numOfParticles-1) / (3/2) * 119.8)
-                    
-                    if plotting == True:
-                        plt.title('Equilibrium reached')
-                        
-                    # zero observables
-                    particleDistances = np.multiply(particleDistances,0)
-                        
-        ### Measure Observables ###
-        
-        # particleDistances is added to in getForce loop
-        
-        
-        ###########################
-                        
-        # Now evolve system
-
-        #Euler
-        if MDS_dict['euler'] == True:
-            iterateCoordinates(i)
-            iterateVelocities(i)
-
-        #Velocity-Verlet
-        if MDS_dict['verlet'] == True:
-            iterateCoordinates_Verlet(i)
-            iterateVelocities_Verlet(i)
-
+    ### EQUILIBRATION STEPS ###
+    equilibrium = False
+    j = 0
+    T_equilibration = 0
+    while equilibrium == False:
+        i = j%(numOfStoredTimesteps) # overwrite parameter matrix
+        i_next = (j+1)%(numOfStoredTimesteps)
+        # Evolution
+        PC3T[:,:,0,i_next] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep,boxSize)
+        particleDistances = getParticleDistanceArray(PC3T[:,:,0,i_next],numOfParticles,numOfDimensions,boxSize)
+        PC3T[:,:,2,i_next], _ = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
+        PC3T[:,:,1,i_next] = iterateVelocities_Verlet(PC3T[:,:,1,i],PC3T[:,:,2,i],PC3T[:,:,2,i_next],numOfParticles,numOfDimensions,timestep)
+        # scatter plot
         if plotting == True:
-            if j%plot_counter == 0:
+            if j%plotCounter == 0:
                 for p in range(len(scatterPoints)):
-                    scatterPoints[p].remove()
+                    scatterPoints.pop(0).remove()
                     colour = colours[p%7]
-                    scatterPoints[p] = ax.scatter(getPXcoord(p,i),getPYcoord(p,i),getPZcoord(p,i),color=colour)
+                    scatterPoints.append(ax.scatter(PC3T[p,0,0,i],PC3T[p,1,0,i],PC3T[p,2,0,i],color=colour))
                 plt.pause(0.000005)
+        # Equilibrium control
+        T_equilibration = getKineticEnergy(PC3T[:,:,1,i],numOfParticles,numOfDimensions)
+        # check if at equilibrium every equilibrationTimer steps
+        # note that 119.8 converts natural energy scale to Kelvin (see week 1 notes)
+        # see if temperature agrees to desired temperature within <1> Kelvin. If it does, don't equilibrate
+        if i%equilibrationTimer == equilibrationTimer-1:
+            if abs(float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8 - bathTemperature) > 1:
+                scalingConstant = getVelocityScalingFactor(T_equilibration,bathTemperature,numOfParticles)
+                print('Scaling constant:', scalingConstant)
+                PC3T[:,:,1,i_next] = np.multiply(PC3T[:,:,1,i_next],scalingConstant) #rescale
+                T_equilibration = getKineticEnergy(PC3T[:,:,1,i_next],numOfParticles,numOfDimensions) #update kinetic energy
+                print('Rescaling from temperature: ',float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8)
+            else:
+                equilibrium = True
+                # Set this configuration as initial configuration
+                PC3T[:,:,:,0] = PC3T[:,:,:,i_next]
+                print('Rescaled temperature: ',float(T_equilibration) / (numOfParticles-1) / (3/2) * 119.8)
+                print('From initial temperature: {}'.format(bathTemperature))
+                if plotting == True:
+                    plt.title('Equilibrium reached')
+        j += 1
+    print('{} steps to equilibrium'.format(j))
 
 
-        vp1[i] = getPXvel(0,i)
-        vp2[i] = getPXvel(1,i)
-        
-        #time.sleep(0.05)
-        
-    ### Post-simulation processing ###
 
-    if MDS_dict['energyPlot'] == True:
-        plotEnergy(MDS_dict)
+    # Initialize observables
+    numOfBins = int(round(np.sqrt(numOfTimesteps)))
+    pcfCount = np.zeros(shape=(numOfTimesteps,numOfBins))
+    P = np.zeros(shape=(numOfTimesteps,))
+    ### BEGINNING OF BIG LOOP ###
+    for j in range(numOfTimesteps):
+        i = j%(numOfStoredTimesteps) # overwrite parameter matrix
+        i_next = (j+1)%(numOfStoredTimesteps)
 
-    ### Compute Observables ###
-    
-    numOfBins = 100 # number of bins for pair correlation histogram
-    
-    # create histogram for pair correlation function
-    # the histogram of the data
-    plt.figure(2)
-    particleDistances = particleDistances/(num_t-1-equilibrium_timestep)
-    plt.ion()
-    n, bins, patches = plt.hist(particleDistances, numOfBins, facecolor='g')
-    
-    # Calculate pair correlation function for each bin
-    pairCorrelation = np.zeros((numOfBins,1),dtype=float)
-    for i in range(numOfBins):
-        pairCorrelation[i] = 2*L**3/numOfParticles/(numOfParticles-1)*n[i]/4/np.pi/bins[i]**2/(bins[i+1]-bins[i])
-    
-    plt.figure(3)
-    plt.plot(bins[0:-1],pairCorrelation)
-    plt.ylabel('g(r)')
-    plt.xlabel(r'$r/\sigma$')
+        # First calculate kinetic energy at the given timestep
+        T[j] = getKineticEnergy(PC3T[:,:,1,i],numOfParticles,numOfDimensions)
+        #Evolution
+        PC3T[:,:,0,i_next] = iterateCoordinates_Verlet(PC3T[:,:,0,i],PC3T[:,:,1,i],PC3T[:,:,2,i],numOfParticles,numOfDimensions,timestep,boxSize)
+        particleDistances = getParticleDistanceArray(PC3T[:,:,0,i_next],numOfParticles,numOfDimensions,boxSize)
+        PC3T[:,:,2,i_next], U[j+1] = getForceAndPotentialEnergy(particleDistances,numOfParticles,numOfDimensions,boxSize)
+        PC3T[:,:,1,i_next] = iterateVelocities_Verlet(PC3T[:,:,1,i],PC3T[:,:,2,i],PC3T[:,:,2,i_next],numOfParticles,numOfDimensions,timestep)
+        if plotting == True:
+            if j%plotCounter == 0:
+                for p in range(len(scatterPoints)):
+                    scatterPoints.pop(0).remove()
+                    colour = colours[p%7]
+                    scatterPoints.append(ax.scatter(PC3T[p,0,0,i],PC3T[p,1,0,i],PC3T[p,2,0,i],color=colour))
+                plt.pause(0.000005)
+        #Observables
+        pcfCount[j,:] = pcf_count(particleDistances[:,0], numOfBins, boxSize)
+        P[j] = pressure(particleDistances)
+
+
+
+    ########################
+    ### Post-proecessing ###
+    ########################
+
+    if energyPlot == True:
+        plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T)
+    #Pair correlation function
+    pcf, pcfErr = pcf_plot(pcfCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False)
+    # Pressure
+    # P gives pressure at each timestep without time avg of prev timesteps
+    P = (1 - 119.8/(3*numOfParticles*bathTemperature)*P)
+    # PP gives mean pressure with time avg
+    avgP, Perr = averageAndError(P,True, True)
+    print('pressure is: {} $\ pm$ {}'.format(avgP, Perr))
+    plt.figure('Pressure')
+    xdata = np.arange(0,numOfTimesteps)
+    plt.plot(xdata, P, color='b')
+    plt.errorbar(xdata, np.full(xdata.shape,avgP), np.full(xdata.shape,Perr), color='r')
+    plt.xlabel('t')
+    plt.ylabel('P')
     plt.show()
-    plt.pause(30)
-    
-    
-    
-    #print(sum(particleDistances[equilibrium_timestep:-2])/(num_t-2-equilibrium_timestep))
-    
 
     return MDS_dict
