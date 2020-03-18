@@ -405,7 +405,7 @@ def pressure(particleDistances):
     '''
     Function to compute pressure at time t
     Accepts: particleDistances: array of particle distances
-             numOfParticles: numbeer of particles in the simulation
+             numOfParticles: number of particles in the simulation
              bathTemperature: temperature
     Returns: P: pressure
     '''
@@ -419,7 +419,24 @@ def pressure(particleDistances):
     P = S
     return P
 
-
+def diffusion(numOfParticles,numOfDimensions,initialX,PC3T):
+    '''
+    Function to gather position data of each particle to calculate diffusion
+    Accepts: numOfParticles: number of particles in the simulation
+             numOfDimensions: number of dimensions
+             initialX: initial positions of particles
+             PC3T[:,:,0,i]: all particles x,y,z positions at timestep i
+    Returns: diff: matrix with current position minus initial position values for 
+                   each particle
+             
+    '''
+    c_diff = np.zeros(shape=(numOfParticles))
+    #for g in range(numOfParticles):
+    for d in range(numOfDimensions):
+        c_diff[:] = c_diff[:] + (PC3T[:,d]-initialX[:,d])**2
+    #diff = np.sqrt(c_diff)
+    return c_diff
+            
 ################# Begin main program ########################
 
 def main(MDS_dict):
@@ -573,6 +590,7 @@ def main(MDS_dict):
     numOfBins = int(round(np.sqrt(numOfTimesteps)))
     pcfCount = np.zeros(shape=(numOfTimesteps,numOfBins))
     P = np.zeros(shape=(numOfTimesteps,))
+    D = np.zeros(shape=(numOfTimesteps,numOfParticles))
     ### BEGINNING OF BIG LOOP ###
     for j in range(numOfTimesteps):
         i = j%(numOfStoredTimesteps) # overwrite parameter matrix
@@ -595,9 +613,8 @@ def main(MDS_dict):
         #Observables
         pcfCount[j,:] = pcf_count(particleDistances[:,0], numOfBins, boxSize)
         P[j] = pressure(particleDistances)
-
-
-
+        D[j] = diffusion(numOfParticles,numOfDimensions,initialX,PC3T[:,:,0,i])
+        
     ########################
     ### Post-proecessing ###
     ########################
@@ -619,5 +636,17 @@ def main(MDS_dict):
     plt.xlabel('t')
     plt.ylabel('P')
     plt.show()
+    
+    # Diffusion
+    
+    ### TO DO find mean and good way to plot it ##
+#    Diff = np.zeros(numOfParticles)
+#    for n in range(numOfParticles):
+#        Diff[n] = np.mean(D[:,n])
+#    plt.figure('Diffusion')
+#    plt.plot(D[0],'r')
+#    plt.plot(D[10],'b')
+#    plt.show()
+    
 
     return MDS_dict
