@@ -415,7 +415,6 @@ def pressure(particleDistances):
         r = particleDistances[i,0]
         invr6 = (1/r)**6 #precomputes (1/r)**6
         S = S + 12* (-2*invr6**2  + invr6)
-    #P = (1 - 119.8/(numOfParticles*bathTemperature)*S)
     P = S
     return P
 
@@ -426,16 +425,17 @@ def diffusion(numOfParticles,numOfDimensions,initialX,PC3T):
              numOfDimensions: number of dimensions
              initialX: initial positions of particles
              PC3T[:,:,0,i]: all particles x,y,z positions at timestep i
-    Returns: diff: matrix with current position minus initial position values for 
-                   each particle
+    Returns: diff: array with mean square distance moved by all particles
              
     '''
-    c_diff = np.zeros(shape=(numOfParticles))
+    c_diff = np.zeros(shape=(numOfParticles,2))
+    diff = np.zeros(shape=(numOfParticles))
     #for g in range(numOfParticles):
     for d in range(numOfDimensions):
-        c_diff[:] = c_diff[:] + (PC3T[:,d]-initialX[:,d])**2
-    #diff = np.sqrt(c_diff)
-    return c_diff
+        c_diff[:,0] = c_diff[:,0] + (PC3T[:,d])**2
+        c_diff[:,1] = c_diff[:,1] + (initialX[:,d])**2
+    diff = (np.sqrt(c_diff[:,0])-np.sqrt(c_diff[:,1]))**2
+    return np.mean(diff)
             
 ################# Begin main program ########################
 
@@ -590,7 +590,8 @@ def main(MDS_dict):
     numOfBins = int(round(np.sqrt(numOfTimesteps)))
     pcfCount = np.zeros(shape=(numOfTimesteps,numOfBins))
     P = np.zeros(shape=(numOfTimesteps,))
-    D = np.zeros(shape=(numOfTimesteps,numOfParticles))
+    D = np.zeros(shape=(numOfTimesteps))
+    D_avg = np.zeros(shape=(numOfTimesteps))
     ### BEGINNING OF BIG LOOP ###
     for j in range(numOfTimesteps):
         i = j%(numOfStoredTimesteps) # overwrite parameter matrix
@@ -638,15 +639,11 @@ def main(MDS_dict):
     plt.show()
     
     # Diffusion
-    
-    ### TO DO find mean and good way to plot it ##
-#    Diff = np.zeros(numOfParticles)
-#    for n in range(numOfParticles):
-#        Diff[n] = np.mean(D[:,n])
-#    plt.figure('Diffusion')
-#    plt.plot(D[0],'r')
-#    plt.plot(D[10],'b')
-#    plt.show()
+    plt.figure('Diffusion')
+    time = np.arange(0, numOfTimesteps*timestep, timestep)
+    plt.plot(time,D,'r')
+    plt.xlabel('$3 \cdot 10^{-13}s$')
+    plt.show()
     
 
-    return MDS_dict
+    return MDS_dict,D

@@ -21,7 +21,7 @@ numOfParticles :        integer,
 
 '''
 
-i = 3 # dimless temp as used in verlet paper
+i = 0.1 # dimless temp as used in verlet paper
 
 MDS_parameters = {
 
@@ -33,7 +33,7 @@ MDS_parameters = {
 'init_particles':       'fcc',
 'box_size':             6, # init_particles 'fcc' will overwrite
 'lattice_constant':     1.49, # used only by init_particles 'fcc'
-'number_of_particles':  14, # init_particles 'fcc' will overwrite
+'number_of_particles':  64, # init_particles 'fcc' will overwrite
 'number_of_dimensions': 3, # hardcoded to 3 in simulation_func.py force calculation
 'bath_temperature' :    119.8*i, # temperature of microcanonical ensemble use i as dimless temp
 'density':				0.88, # used only by init_particles 'fcc' choose 0 for arbitrary density set by user specification of a
@@ -41,7 +41,7 @@ MDS_parameters = {
 # Plotting options
 'plotting':             False, # Plot particle motion in scatter plot
 'plot_counter' :        10,
-'energy_plot' :         True,
+'energy_plot' :         False,
 'save_figures':         False,
 
 # Observables
@@ -49,4 +49,4 @@ MDS_parameters = {
 # TODO create other observable flags
 }
 
-_ = fu.main(MDS_parameters)
+_,D = fu.main(MDS_parameters)
