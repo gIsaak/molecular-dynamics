@@ -285,7 +285,7 @@ def autocorr(data, plot=True):
     Autocorrelation function as calculated in the lecutre notes (week 5)
     The cutoff for t is given by t = sqrt(N_sim)
     Autocorrelation length tau is computed fitting the curve to
-    exp(-(t-a)/tau) + b
+    a*exp(-t/tau)
 
     Parameters
     ----------
@@ -312,14 +312,14 @@ def autocorr(data, plot=True):
         chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
     # Fit
     xdata = np.arange(chi_length)
-    def func(x, tau, a, b):
-        return np.exp(-(x-a)/tau) + b
+    def func(x, tau, a):
+        return np.exp(-x/tau)*a
     param, _ = curve_fit(func, xdata, chi)
     tau = param[0]
     if plot == True:
         plt.plot(xdata, chi, 'b-', label='data')
         # Fit
-        plt.plot(xdata, func(xdata, *param), 'r--', label=r'Autocorrelation $\tau$=%5.3f, a=%5.3f, b=%5.3f' % tuple(param))
+        plt.plot(xdata, func(xdata, *param), 'r--', label=r'Autocorrelation $\tau$=%5.3f, a=%5.3f' % tuple(param))
         plt.xlabel('t')
         plt.ylabel(r'$\chi$')
         plt.title(r'N = %d' % N_sim)
