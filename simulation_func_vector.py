@@ -220,7 +220,7 @@ def plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T):
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
 
-def autocorr(data, plot=True):
+def autocorr(data, plot=True, guess = [0,0]):
     '''
     Computes autocorrelation function for an observable
 
@@ -234,6 +234,11 @@ def autocorr(data, plot=True):
 
     data: numpy array
         value of observable at each timestep
+    
+    guess: array
+        supply [tau,a] guess for curve_fit routine
+        this is important especially if dealing with large values, such
+        as calculating the uncertainty of <T^2>
 
     Returns:
     --------
@@ -256,7 +261,11 @@ def autocorr(data, plot=True):
     xdata = np.arange(chi_length)
     def func(x, tau, a):
         return np.exp(-x/tau)*a
-    param, _ = curve_fit(func, xdata, chi)
+    param = [0,0]
+    if guess == [0,0]:
+        param, _ = curve_fit(func, xdata, chi)
+    else:
+        param, _ = curve_fit(func, xdata, chi, guess)
     tau = param[0]
     if plot == True:
         plt.plot(xdata, chi, 'b-', label='data')
@@ -269,7 +278,7 @@ def autocorr(data, plot=True):
         plt.show()
     return chi, tau
 
-def averageAndError(obs,autoCorr=False, plotAutoCorr=False):
+def averageAndError(obs,autoCorr=False, plotAutoCorr=False, guess = [0,0]):
     '''
     Function to computer and observable average and error
     - autoCorr = False (default) assumes statistically independent data
@@ -286,7 +295,11 @@ def averageAndError(obs,autoCorr=False, plotAutoCorr=False):
     N = obs.size
     sigma = np.sqrt((avg2 - avg**2)/(N - 1))
     if autoCorr == True:
-        _, tau = autocorr(obs, plotAutoCorr)
+        tau = 1
+        if guess == [0,0]:
+            _, tau = autocorr(obs, plotAutoCorr)
+        else:
+            _, tau = autocorr(obs,plotAutoCorr,guess)
         sigma = sigma*np.sqrt(2*tau*(N - 1)/N)
     return avg, sigma
 
@@ -540,6 +553,41 @@ def main(MDS_dict):
     plt.xlabel('t')
     plt.ylabel('P')
     plt.show()
+    
+    # Specific Heat (per particle)
+    # The two formulas are derived from the same relation published by Verlet:
+    # <dK^2>/<K> = T(1-3/(2C)) where C is the specific heat per particle
+    
+    # The lecture notes provide the formula:
+    # <dK^2>/<K>^2 = 2/(3N)*(1-2/(2C))
+    # which makes use of equipartition: <K> = 3/2 * N * T / 119.8
+    
+    # Since the mean kinetic energy will not always exactly match with our
+    # user set temperature, there will be some discrepancy between the forms.
+    
+    # We can also use a 3rd form used by Lebowitz & Verlet in the same paper
+    # <dK^2> = 3*N*T^2/2 * (1-3/(2C))
+    # Here, the user set temperature is used instead of the average kinetic energy
+    
+    meanT, meanTErr = averageAndError(T,True,True)
+    meanTsq, meanTsqErr = averageAndError(np.power(T,2),True,True,[10,1.5e9]) # the division by 1000 ensures the values don't get too large and curve_fit still works for finding the correlation length
+    #meanTsq = sum(np.power(T,2)) / len(T)
+    varTsq = meanTsq - meanT**2
+    #Cv1 = 1/((1 - varTsq/meanT**2 * 3*numOfParticles/2) * 2 / 3)
+    #print("Specific heat (formula 1): ", Cv1)
+    #Cv2 = 1/((1 - varTsq/meanT / (bathTemperature/119.8)) * 2 / 3)
+    #print("Specific heat (formula 2): ", Cv2)
+    Cv3 = 1/((1-varTsq*2/3/numOfParticles/(bathTemperature/119.8)**2) * 2 / 3)
+    
+    print("meanT: ", meanT," meanTsq: ", meanTsq)
+    print("meanTErr: ", meanTErr,", meanTsqErr: ", meanTsqErr)
+    NTsq = numOfParticles*(bathTemperature/119.8)**2
+    dCdKsq = (4 * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
+    dCdK = (-8 * meanT * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
+    dCv3 = np.sqrt((dCdKsq)**2 * meanTsqErr**2 + (dCdK)**2 * meanTErr**2)
+    
+    print('Specific heat: {} +/- {}'.format(Cv3,dCv3))
+    print('Lebowitz comparison: {} +/- {}'.format(Cv3-3/2,dCv3))
 
     # Diffusion
     #plt.figure('Diffusion')
