@@ -11,7 +11,7 @@ import simulation_func_vector as fu
 
 # savefig == True   --saves figure as MDS_#particles_method.png in current dir
 
-i = 0.1 # dimless temp as used in verlet paper
+i = 2.89 # dimless temp as used in verlet paper
 
 MDS_parameters = {
 
@@ -26,7 +26,7 @@ MDS_parameters = {
 'lattice_constant':     1.49,    # used only by init_particles 'fcc'
 'number_of_particles':  120,      # init_particles 'fcc' will overwrite
 'bath_temperature' :    119.8*i, # temperature of microcanonical ensemble use i as dimless temp
-'density':				0.06,    # used only by init_particles 'fcc' choose 0 for arbitrary density set by user specification of a
+'density':				0.85,    # used only by init_particles 'fcc' choose 0 for arbitrary density set by user specification of a
 
 # Plotting options
 'plotting':             False,    # Plot particle motion in scatter plot

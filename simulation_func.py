@@ -657,19 +657,19 @@ def main(MDS_dict):
     _, meanTsqErr = averageAndError(np.power(T,2)/1000,True,True) # the division by 1000 ensures the values don't get too large and curve_fit still works for finding the correlation length
     meanTsq = sum(np.power(T,2)) / len(T)
     varTsq = meanTsq - meanT**2
-    Cv1 = 1/((1 - varTsq/meanT**2 * 3*numOfParticles/2) * 2 / 3)
-    print("Specific heat (formula 1): ", Cv1)
-    Cv2 = 1/((1 - varTsq/meanT / (bathTemperature/119.8)) * 2 / 3)
-    print("Specific heat (formula 2): ", Cv2)
+    #Cv1 = 1/((1 - varTsq/meanT**2 * 3*numOfParticles/2) * 2 / 3)
+    #print("Specific heat (formula 1): ", Cv1)
+    #Cv2 = 1/((1 - varTsq/meanT / (bathTemperature/119.8)) * 2 / 3)
+    #print("Specific heat (formula 2): ", Cv2)
     Cv3 = 1/((1-varTsq*2/3/numOfParticles/(bathTemperature/119.8)**2) * 2 / 3)
     
-    print("meanTErr: ", meanTErr,", meanTsqErr: ", meanTsqErr)
+    #print("meanTErr: ", meanTErr,", meanTsqErr: ", meanTsqErr)
     NTsq = numOfParticles*(bathTemperature/119.8)**2
     dCdKsq = (4 * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
     dCdK = (-8 * meanT * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
     dCv3 = np.sqrt((dCdKsq)**2 * meanTsqErr**2 + (dCdK)**2 * meanTErr**2)
     
-    print("Specific heat (formula 3): ", Cv3, " +/- ", dCv3)
+    print('Specific heat: {} $\pm$ {}'.format(Cv3,dCv3))
     
     # use averageAndError(T,True,False) and averageAndError(np.power(T,2),True,False)
     # to compute errors and then add in quadrature
