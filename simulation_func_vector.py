@@ -14,6 +14,7 @@ from itertools import combinations
 #mass = 39.948*1.66e-27 #Kg
 energy_temp_conversion = 119.8
 
+
 def getKineticEnergy(v):
     '''
     Accepts a velocity submatrix v containing all velocity components for all
@@ -23,6 +24,7 @@ def getKineticEnergy(v):
     '''
     KE = np.sum(v**2)/2.0
     return KE
+
 
 def getDistance(x,boxSize):
     '''
@@ -46,6 +48,7 @@ def getDistance(x,boxSize):
     dist = np.sqrt(np.sum(distComp**2, axis=1))
     return dist, distComp
 
+
 def getForce(dist,distComp):
     '''
     Function to get force on each particle for a given configuration
@@ -65,6 +68,7 @@ def getForce(dist,distComp):
     F = np.sum(np.multiply(distComp, grad_tile), axis=2) #broadcasting
     return F
 
+
 def getPotentialEnergy(dist):
     '''
     Function to calculate total potential energy in the system.
@@ -76,6 +80,7 @@ def getPotentialEnergy(dist):
     # Compute Potential Energy
     PE = 2*np.sum(invDist**12 - invDist**6) # 1/2 to account for double counting of distances
     return PE
+
 
 def iterateCoordinates_Verlet(x,v,f,timestep,boxSize):
     '''
@@ -90,6 +95,7 @@ def iterateCoordinates_Verlet(x,v,f,timestep,boxSize):
     newX = np.mod(newX, boxSize) #periodic boundary condition
     return newX
 
+
 def iterateVelocities_Verlet(v,f,nextf,timestep):
     '''
     Accepts 3 submatrices for particle velocities (v), particle forces at the same
@@ -100,6 +106,7 @@ def iterateVelocities_Verlet(v,f,nextf,timestep):
     '''
     newV = v + 0.5*timestep*(f + nextf)
     return newV
+
 
 def init_position(a,numOfParticles,density=0):
     '''
@@ -162,6 +169,7 @@ def init_position(a,numOfParticles,density=0):
                 p += 1
     return newX, newNumOfParticles, L
 
+
 def gaussVel(temp, numOfParticles):
     '''
     Accepts temperature (temp), numOfParticles
@@ -218,6 +226,7 @@ def plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T):
     # Save figure
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
+
 
 def autocorr(data, plot=True, guess=[0,0]):
     '''
@@ -286,6 +295,7 @@ def autocorr(data, plot=True, guess=[0,0]):
         plt.show()
     return chi, tau
 
+
 def averageAndError(obs,autoCorr=False, plotAutoCorr=False, guess = [0,0]):
     '''
     Function to computer and observable average and error
@@ -326,6 +336,7 @@ def pcf_count(dist, numOfBins, boxSize, numOfParticles):
     # take care of 0 entries in dist
     histCount[0] = histCount[0] - numOfParticles
     return histCount/2.0
+
 
 def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False):
     '''
@@ -371,13 +382,13 @@ def pressure(dist):
     '''
     Function to compute pressure at time t
     Accepts: dist: matrix of particle distances
-             numOfParticles: number of particles in the simulation
-             bathTemperature: temperature
+
     Returns: P: pressure
     '''
     invDist = np.reciprocal(dist, out=np.zeros_like(dist), where=dist!=0)
     P = 6* np.sum(-2*invDist**12  + invDist**6) #1/2 factor due to double counting
     return P
+    
 
 def evolve(X, V, F, dist, distComp, timestep, boxSize):
     '''
@@ -426,24 +437,22 @@ def equilibrate(X,V,F,dist,distComp,timestep,boxSize,equilibrationTimer,bathTemp
     print('{} steps to equilibrium'.format(i))
     return X, V, F, dist, distComp
 
-# TODO wait for ludi to fix this
-#def diffusion(numOfParticles,initialX,PC3T):
-#    '''
-#    Function to gather position data of each particle to calculate diffusion
-#    Accepts: numOfParticles: number of particles in the simulation
-#             initialX: initial positions of particles
-#             PC3T[:,:,0,i]: all particles x,y,z positions at timestep i
-#    Returns: diff: array with mean square distance moved by all particles
-#
-#    '''
-#    c_diff = np.zeros(shape=(numOfParticles,2))
-#    diff = np.zeros(shape=(numOfParticles))
-#    #for g in range(numOfParticles):
-#    for d in range(3):
-#        c_diff[:,0] = c_diff[:,0] + (PC3T[:,d])**2
-#        c_diff[:,1] = c_diff[:,1] + (initialX[:,d])**2
-#    diff = (np.sqrt(c_diff[:,0])-np.sqrt(c_diff[:,1]))**2
-#    return np.mean(diff)
+
+def diffusion(X,initialX):
+    '''
+    Function to gather position data of each particle to calculate diffusion
+    Accepts: X: all particles x,y,z positions at timestep i
+             initialX: initial positions of particles (after equilibration)
+             
+    Returns: diff: float holding sum mean square distance moved by all particles
+    '''
+    c_diff = np.zeros(shape=(X.shape[0],2))
+    diff = np.zeros(shape=(X.shape[0]))
+    for d in range(3):
+        c_diff[:,0] = c_diff[:,0] + (X[:,d])**2
+        c_diff[:,1] = c_diff[:,1] + (initialX[:,d])**2
+    diff = (np.sqrt(c_diff[:,0])-np.sqrt(c_diff[:,1]))**2
+    return np.mean(diff)
 
 ################# Begin main program ########################
 
@@ -529,6 +538,7 @@ def main(MDS_dict):
                     scatterPoints.pop(0).remove()
                     colour = colours[p%7]
                     scatterPoints.append(ax.scatter(X[p,0],X[p,1],X[p,2],color=colour))
+                    #ax.text(X[p,0],X[p,1],X[p,2], '{}'.format((str(p)), size=20, zorder=1, color='k'))
                 plt.pause(0.000005)
 
         #Evolution
@@ -545,10 +555,10 @@ def main(MDS_dict):
     # Pair correlation function
     pcf, pcfErr = pcf_plot(pcfCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures)
 
-    # Pressure
-    # P gives pressure at each timestep without time avg of prev timesteps
+    # Pressure of each timestep
     P = (1 - energy_temp_conversion/(3*numOfParticles*bathTemperature)*P)
-    # avgP gives mean pressure with time avg
+    # avgP: time average pressure
+    # Perr: error of time averaged pressure
     avgP, Perr = averageAndError(P,True, False)
     print('pressure is: {} $\ pm$ {}'.format(avgP, Perr))
     # Plot pressure
@@ -584,11 +594,15 @@ def main(MDS_dict):
     dC = dCv/numOfParticles
     print('Heat Capacity: {} +/- {}'.format(C,dC))
 
-    # Diffusion
-    #plt.figure('Diffusion')
-    #time = np.arange(0, numOfTimesteps*timestep, timestep)
-    #plt.plot(time,D,'r')
-    #plt.xlabel('$3 \cdot 10^{-13}s$')
-    #plt.show()
+    # Diffusion: D holds mean square distance in simga**2 for each timestep
+    # Derr: error mean square distance
+    _, Derr = averageAndError(D,True, True)
+    # plot
+    plt.figure('Diffusion')
+    time = np.arange(0, numOfTimesteps*timestep, timestep)
+    plt.plot(time,D,'r')
+    plt.xlabel('time unit in 10^{-12}s$')
+    plt.show()
 
-    return avgP,Perr,C,dC
+    return avgP,Perr,C,dC,D,Derr,avgP,Perr
+  
