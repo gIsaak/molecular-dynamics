@@ -220,7 +220,7 @@ def plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T):
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
 
-def autocorr(data, plot=True, guess = [0,0]):
+def autocorr(data, plot=True, guess=[0,0]):
     '''
     Computes autocorrelation function for an observable
 
@@ -234,7 +234,7 @@ def autocorr(data, plot=True, guess = [0,0]):
 
     data: numpy array
         value of observable at each timestep
-    
+
     guess: array
         supply [tau,a] guess for curve_fit routine
         this is important especially if dealing with large values, such
@@ -251,12 +251,21 @@ def autocorr(data, plot=True, guess = [0,0]):
     chi_length = int(round(np.sqrt(N_sim))) #cutoff at sqrt(N_sim)
     chi = np.zeros(shape=(chi_length,))
     for t in range(chi_length):
-        a, b, c = 0, 0, 0
+        a, b, c, d, e = 0, 0, 0, 0, 0
+        #for n in range(N_sim - t):
+        #    a = a + data[n]*data[n+t]
+        #    b = b + data[n]
+        #    c = c + data[n+t]
+        #chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
         for n in range(N_sim - t):
             a = a + data[n]*data[n+t]
             b = b + data[n]
             c = c + data[n+t]
-        chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
+            d = d + data[n]*data[n]
+            e = e + data[n+t]*data[n+t]
+        numChi = (N_sim - t)*a - b*c
+        denChi = np.sqrt((N_sim - t)*d - b**2)*np.sqrt((N_sim - t)*e - c**2)
+        chi[t] = numChi/denChi
     # Fit
     xdata = np.arange(chi_length)
     def func(x, tau, a):
@@ -352,10 +361,10 @@ def pcf_plot(histCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, save
     plt.ylabel('PCF')
     plt.grid()
     fig.suptitle('Pair correlation function', size = 14)
-    plt.show()
     # Save figure
     if saveFigures == True:
         plt.savefig('{}.png'.format(name), dpi=300)
+    plt.show()
     return pcf, pcfErr
 
 
@@ -387,8 +396,7 @@ def evolve(X, V, F, dist, distComp, timestep, boxSize):
     Vnext = iterateVelocities_Verlet(V, F, Fnext, timestep)
     return Xnext, Vnext, Fnext, distNext, distCompNext
 
-# TODO way too mant arguments
-def equilibrate(X, V, F, dist, distComp, timestep, boxSize, equilibrationTimer, bathTemperature):
+def equilibrate(X,V,F,dist,distComp,timestep,boxSize,equilibrationTimer,bathTemperature):
     '''
     Function to set system at equilibrium
 
@@ -457,8 +465,8 @@ def main(MDS_dict):
     plotting           = MDS_dict['plotting']
     plotCounter        = MDS_dict['plot_counter']
     energyPlot         = MDS_dict['energy_plot']
-    saveFigures        = MDS_dict['save_figures']
     density            = MDS_dict['density']
+    saveFigures        = MDS_dict['save_figures']
 
     ########################
     ### Simulation Setup ###
@@ -537,7 +545,7 @@ def main(MDS_dict):
         plotEnergy(numOfParticles,numOfTimesteps,timestep,saveFigures,U,T)
 
     # Pair correlation function
-    pcf, pcfErr = pcf_plot(pcfCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures = False)
+    pcf, pcfErr = pcf_plot(pcfCount, numOfParticles, numOfTimesteps, numOfBins, boxSize, saveFigures)
 
     # Pressure
     # P gives pressure at each timestep without time avg of prev timesteps
@@ -553,22 +561,22 @@ def main(MDS_dict):
     plt.xlabel('t')
     plt.ylabel('P')
     plt.show()
-    
+
     # Specific Heat (per particle)
     # The two formulas are derived from the same relation published by Verlet:
     # <dK^2>/<K> = T(1-3/(2C)) where C is the specific heat per particle
-    
+
     # The lecture notes provide the formula:
     # <dK^2>/<K>^2 = 2/(3N)*(1-2/(2C))
     # which makes use of equipartition: <K> = 3/2 * N * T / 119.8
-    
+
     # Since the mean kinetic energy will not always exactly match with our
     # user set temperature, there will be some discrepancy between the forms.
-    
+
     # We can also use a 3rd form used by Lebowitz & Verlet in the same paper
     # <dK^2> = 3*N*T^2/2 * (1-3/(2C))
     # Here, the user set temperature is used instead of the average kinetic energy
-    
+
     meanT, meanTErr = averageAndError(T,True,True)
     meanTsq, meanTsqErr = averageAndError(np.power(T,2),True,True,[10,1.5e9]) # the division by 1000 ensures the values don't get too large and curve_fit still works for finding the correlation length
     #meanTsq = sum(np.power(T,2)) / len(T)
@@ -578,14 +586,14 @@ def main(MDS_dict):
     #Cv2 = 1/((1 - varTsq/meanT / (bathTemperature/119.8)) * 2 / 3)
     #print("Specific heat (formula 2): ", Cv2)
     Cv3 = 1/((1-varTsq*2/3/numOfParticles/(bathTemperature/119.8)**2) * 2 / 3)
-    
+
     print("meanT: ", meanT," meanTsq: ", meanTsq)
     print("meanTErr: ", meanTErr,", meanTsqErr: ", meanTsqErr)
     NTsq = numOfParticles*(bathTemperature/119.8)**2
     dCdKsq = (4 * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
     dCdK = (-8 * meanT * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
     dCv3 = np.sqrt((dCdKsq)**2 * meanTsqErr**2 + (dCdK)**2 * meanTErr**2)
-    
+
     print('Specific heat: {} +/- {}'.format(Cv3,dCv3))
     print('Lebowitz comparison: {} +/- {}'.format(Cv3-3/2,dCv3))
 
