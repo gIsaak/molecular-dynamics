@@ -285,7 +285,7 @@ def autocorr(data, plot=True):
     Autocorrelation function as calculated in the lecutre notes (week 5)
     The cutoff for t is given by t = sqrt(N_sim)
     Autocorrelation length tau is computed fitting the curve to
-    exp(-(t-a)/tau) + b
+    a*exp(-t/tau)
 
     Parameters
     ----------
@@ -312,14 +312,14 @@ def autocorr(data, plot=True):
         chi[t] = a/(N_sim - t) - b*c/(N_sim - t)**2
     # Fit
     xdata = np.arange(chi_length)
-    def func(x, tau, a, b):
-        return np.exp(-(x-a)/tau) + b
+    def func(x, tau, a):
+        return np.exp(-x/tau)*a
     param, _ = curve_fit(func, xdata, chi)
     tau = param[0]
     if plot == True:
         plt.plot(xdata, chi, 'b-', label='data')
         # Fit
-        plt.plot(xdata, func(xdata, *param), 'r--', label=r'Autocorrelation $\tau$=%5.3f, a=%5.3f, b=%5.3f' % tuple(param))
+        plt.plot(xdata, func(xdata, *param), 'r--', label=r'Autocorrelation $\tau$=%5.3f, a=%5.3f' % tuple(param))
         plt.xlabel('t')
         plt.ylabel(r'$\chi$')
         plt.title(r'N = %d' % N_sim)
@@ -405,7 +405,7 @@ def pressure(particleDistances):
     '''
     Function to compute pressure at time t
     Accepts: particleDistances: array of particle distances
-             numOfParticles: numbeer of particles in the simulation
+             numOfParticles: number of particles in the simulation
              bathTemperature: temperature
     Returns: P: pressure
     '''
@@ -415,11 +415,28 @@ def pressure(particleDistances):
         r = particleDistances[i,0]
         invr6 = (1/r)**6 #precomputes (1/r)**6
         S = S + 12* (-2*invr6**2  + invr6)
-    #P = (1 - 119.8/(numOfParticles*bathTemperature)*S)
     P = S
     return P
 
-
+def diffusion(numOfParticles,numOfDimensions,initialX,PC3T):
+    '''
+    Function to gather position data of each particle to calculate diffusion
+    Accepts: numOfParticles: number of particles in the simulation
+             numOfDimensions: number of dimensions
+             initialX: initial positions of particles
+             PC3T[:,:,0,i]: all particles x,y,z positions at timestep i
+    Returns: diff: array with mean square distance moved by all particles
+             
+    '''
+    c_diff = np.zeros(shape=(numOfParticles,2))
+    diff = np.zeros(shape=(numOfParticles))
+    #for g in range(numOfParticles):
+    for d in range(numOfDimensions):
+        c_diff[:,0] = c_diff[:,0] + (PC3T[:,d])**2
+        c_diff[:,1] = c_diff[:,1] + (initialX[:,d])**2
+    diff = (np.sqrt(c_diff[:,0])-np.sqrt(c_diff[:,1]))**2
+    return np.mean(diff)
+            
 ################# Begin main program ########################
 
 def main(MDS_dict):
@@ -573,6 +590,8 @@ def main(MDS_dict):
     numOfBins = int(round(np.sqrt(numOfTimesteps)))
     pcfCount = np.zeros(shape=(numOfTimesteps,numOfBins))
     P = np.zeros(shape=(numOfTimesteps,))
+    D = np.zeros(shape=(numOfTimesteps))
+    D_avg = np.zeros(shape=(numOfTimesteps))
     ### BEGINNING OF BIG LOOP ###
     for j in range(numOfTimesteps):
         i = j%(numOfStoredTimesteps) # overwrite parameter matrix
@@ -595,9 +614,8 @@ def main(MDS_dict):
         #Observables
         pcfCount[j,:] = pcf_count(particleDistances[:,0], numOfBins, boxSize)
         P[j] = pressure(particleDistances)
-
-
-
+        D[j] = diffusion(numOfParticles,numOfDimensions,initialX,PC3T[:,:,0,i])
+        
     ########################
     ### Post-proecessing ###
     ########################
@@ -619,5 +637,49 @@ def main(MDS_dict):
     plt.xlabel('t')
     plt.ylabel('P')
     plt.show()
+    
+    # Specific Heat (per particle)
+    # The two formulas are derived from the same relation published by Verlet:
+    # <dK^2>/<K> = T(1-3/(2C)) where C is the specific heat per particle
+    
+    # The lecture notes provide the formula:
+    # <dK^2>/<K>^2 = 2/(3N)*(1-2/(2C))
+    # which makes use of equipartition: <K> = 3/2 * N * T / 119.8
+    
+    # Since the mean kinetic energy will not always exactly match with our
+    # user set temperature, there will be some discrepancy between the forms.
+    
+    # We can also use a 3rd form used by Lebowitz & Verlet in the same paper
+    # <dK^2> = 3*N*T^2/2 * (1-3/(2C))
+    # Here, the user set temperature is used instead of the average kinetic energy
+    
+    meanT, meanTErr = averageAndError(T,True,True)
+    _, meanTsqErr = averageAndError(np.power(T,2)/1000,True,True) # the division by 1000 ensures the values don't get too large and curve_fit still works for finding the correlation length
+    meanTsq = sum(np.power(T,2)) / len(T)
+    varTsq = meanTsq - meanT**2
+    #Cv1 = 1/((1 - varTsq/meanT**2 * 3*numOfParticles/2) * 2 / 3)
+    #print("Specific heat (formula 1): ", Cv1)
+    #Cv2 = 1/((1 - varTsq/meanT / (bathTemperature/119.8)) * 2 / 3)
+    #print("Specific heat (formula 2): ", Cv2)
+    Cv3 = 1/((1-varTsq*2/3/numOfParticles/(bathTemperature/119.8)**2) * 2 / 3)
+    
+    #print("meanTErr: ", meanTErr,", meanTsqErr: ", meanTsqErr)
+    NTsq = numOfParticles*(bathTemperature/119.8)**2
+    dCdKsq = (4 * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
+    dCdK = (-8 * meanT * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
+    dCv3 = np.sqrt((dCdKsq)**2 * meanTsqErr**2 + (dCdK)**2 * meanTErr**2)
+    
+    print('Specific heat: {} $\pm$ {}'.format(Cv3,dCv3))
+    
+    # use averageAndError(T,True,False) and averageAndError(np.power(T,2),True,False)
+    # to compute errors and then add in quadrature
+    
+    # Diffusion
+    plt.figure('Diffusion')
+    time = np.arange(0, numOfTimesteps*timestep, timestep)
+    plt.plot(time,D,'r')
+    plt.xlabel('$3 \cdot 10^{-13}s$')
+    plt.show()
+    
 
-    return MDS_dict
+    return MDS_dict,D
