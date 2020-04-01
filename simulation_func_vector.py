@@ -3,8 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import fsolve
 from scipy.optimize import curve_fit
-import os
-from itertools import combinations
 
 ##### Parameters #####
 
@@ -478,6 +476,7 @@ def main(MDS_dict):
     ########################
     ### Simulation Setup ###
     ########################
+    
     # Initialize observables
     U = np.zeros((numOfTimesteps+1,1), dtype=float)
     T = np.zeros((numOfTimesteps+1,1), dtype=float)
@@ -485,7 +484,6 @@ def main(MDS_dict):
     pcfCount = np.zeros(shape=(numOfTimesteps,numOfBins))
     P = np.zeros(shape=(numOfTimesteps,))
     D = np.zeros(shape=(numOfTimesteps))
-    D_avg = np.zeros(shape=(numOfTimesteps))
     # Miscellanea
     scatterPoints = []
     colours = ['b','g','r','c','m','y','k','w']
@@ -522,14 +520,15 @@ def main(MDS_dict):
     # Equilibration
     X, V, F, dist, distComp = \
             equilibrate(X, V, F, dist, distComp, timestep, boxSize, equilibrationTimer, bathTemperature)
-
+    initialX = X
+    
     for i in range(numOfTimesteps):
         # Compute obsrvables
         U[i] = getPotentialEnergy(dist)
         T[i] = getKineticEnergy(V)
         pcfCount[i,:] = pcf_count(dist, numOfBins, boxSize, numOfParticles)
         P[i] = pressure(dist)
-        #D[j] = diffusion(numOfParticles,initialX,PC3T[:,:,0,i])
+        D[i] = diffusion(X,initialX)
 
         # Plot
         if plotting == True:
@@ -601,8 +600,8 @@ def main(MDS_dict):
     plt.figure('Diffusion')
     time = np.arange(0, numOfTimesteps*timestep, timestep)
     plt.plot(time,D,'r')
-    plt.xlabel('time unit in 10^{-12}s$')
+    plt.xlabel('time unit in $10^{-12}s$')
     plt.show()
 
-    return avgP,Perr,C,dC,D,Derr,avgP,Perr
+    return avgP,Perr,C,dC,D,Derr
   
