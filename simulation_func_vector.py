@@ -5,12 +5,14 @@ from scipy.optimize import fsolve
 from scipy.optimize import curve_fit
 import os
 from itertools import combinations
+
 ##### Parameters #####
 
 # Lennard-Jones parameters Argon
 #eps = 119.8 # k_b
 #sigma = 3.405 # Angstrom
 #mass = 39.948*1.66e-27 #Kg
+energy_temp_conversion = 119.8
 
 def getKineticEnergy(v):
     '''
@@ -44,7 +46,6 @@ def getDistance(x,boxSize):
     dist = np.sqrt(np.sum(distComp**2, axis=1))
     return dist, distComp
 
-
 def getForce(dist,distComp):
     '''
     Function to get force on each particle for a given configuration
@@ -57,7 +58,7 @@ def getForce(dist,distComp):
     F = np.zeros((N,3))
     # get 1/r matrix
     invDist = np.reciprocal(dist, out=np.zeros_like(dist), where=dist!=0)
-    # Computer force
+    # Compute force
     grad = 24*(invDist**8 - 2*invDist**14)
     grad_expand = np.expand_dims(grad,1)
     grad_tile = np.tile(grad_expand, (1,3,1))
@@ -73,10 +74,9 @@ def getPotentialEnergy(dist):
     '''
     invDist = np.reciprocal(dist, out=np.zeros_like(dist), where=dist!=0)
     # Compute Potential Energy
-    PE = 2*np.sum(invDist**12 - invDist**6)#1/2 to account for double counting of distances
+    PE = 2*np.sum(invDist**12 - invDist**6) # 1/2 to account for double counting of distances
     return PE
 
-# Verlet algorithm
 def iterateCoordinates_Verlet(x,v,f,timestep,boxSize):
     '''
     Accepts 3 submatrices for particle positions (x), particle velocities (v), and
@@ -90,7 +90,6 @@ def iterateCoordinates_Verlet(x,v,f,timestep,boxSize):
     newX = np.mod(newX, boxSize) #periodic boundary condition
     return newX
 
-# Verlet algorithm
 def iterateVelocities_Verlet(v,f,nextf,timestep):
     '''
     Accepts 3 submatrices for particle velocities (v), particle forces at the same
@@ -172,7 +171,7 @@ def gaussVel(temp, numOfParticles):
     '''
     newV = np.zeros((numOfParticles,3), dtype=float)
     # Distribution parameters
-    mu, sigma = 0, np.sqrt(temp/119.8) # mean is 0 and standard deviation in Kelvin
+    mu, sigma = 0, np.sqrt(temp/energy_temp_conversion) # mean is 0 and standard deviation in Kelvin
     for i in range(3):
         v_i = np.random.normal(mu, sigma, numOfParticles)
         newV[:,i] = v_i - np.mean(v_i)
@@ -190,7 +189,7 @@ def getVelocityScalingFactor(KE,bathTemperature,numOfParticles):
     '''
     # calculate the rescaling
     sum_of_m_vi_squared = 2*float(KE)
-    rescalingConstant = np.sqrt((numOfParticles-1)*3*bathTemperature/119.8/sum_of_m_vi_squared)
+    rescalingConstant = np.sqrt((numOfParticles-1)*3*bathTemperature/energy_temp_conversion/sum_of_m_vi_squared)
     return rescalingConstant
 
 
@@ -406,7 +405,6 @@ def equilibrate(X,V,F,dist,distComp,timestep,boxSize,equilibrationTimer,bathTemp
     N = X.shape[0] #number of paricles
     equilibrium = False
     i = 0
-    T_equilibration = 0
     while equilibrium == False:
         # Evolution
         X, V, F, dist, distComp = evolve(X, V, F, dist, distComp, timestep, boxSize)
@@ -414,15 +412,15 @@ def equilibrate(X,V,F,dist,distComp,timestep,boxSize,equilibrationTimer,bathTemp
         T = getKineticEnergy(V)
         # Equilibium check
         if i%equilibrationTimer == equilibrationTimer-1:
-            if abs(float(T) / (N-1) / (3/2) * 119.8 - bathTemperature) > 1:
+            if abs(float(T) / (N-1) / (3/2) * energy_temp_conversion - bathTemperature) > 1:
                 scalingConstant = getVelocityScalingFactor(T, bathTemperature, N)
                 print('Scaling constant:', scalingConstant)
                 V = np.multiply(V, scalingConstant) #rescale
                 T = getKineticEnergy(V) #update kinetic energy
-                print('Rescaling from temperature: ',float(T) / (N-1) / (3/2) * 119.8)
+                print('Rescaling from temperature: ',float(T) / (N-1) / (3/2) * energy_temp_conversion)
             else:
                 equilibrium = True
-                print('Rescaled temperature: ',float(T) / (N-1) / (3/2) * 119.8)
+                print('Rescaled temperature: ',float(T) / (N-1) / (3/2) * energy_temp_conversion)
                 print('From initial temperature: {}'.format(bathTemperature))
         i += 1
     print('{} steps to equilibrium'.format(i))
@@ -549,9 +547,9 @@ def main(MDS_dict):
 
     # Pressure
     # P gives pressure at each timestep without time avg of prev timesteps
-    P = (1 - 119.8/(3*numOfParticles*bathTemperature)*P)
+    P = (1 - energy_temp_conversion/(3*numOfParticles*bathTemperature)*P)
     # avgP gives mean pressure with time avg
-    avgP, Perr = averageAndError(P,True, True)
+    avgP, Perr = averageAndError(P,True, False)
     print('pressure is: {} $\ pm$ {}'.format(avgP, Perr))
     # Plot pressure
     plt.figure('Pressure')
@@ -571,8 +569,8 @@ def main(MDS_dict):
     # we can use the known formula to compute the uncertainty of f and then propagate
     # this uncertainty to Cv
     
-    meanT, meanTErr = averageAndError(T,True,True,[10,1000])
-    meanTsq, meanTsqErr = averageAndError(np.power(T,2),True,True,[10,1.5e9])
+    meanT, meanTErr = averageAndError(T,True,False,[10,1000])
+    meanTsq, meanTsqErr = averageAndError(np.power(T,2),True,False,[10,1.5e9])
     
     f = meanTsq/meanT**2
     covKKsq = np.mean(np.multiply((T - meanT),(np.power(T,2)-meanTsq)))
@@ -584,7 +582,7 @@ def main(MDS_dict):
     # convert to heat capacity per particle
     C = Cv/numOfParticles
     dC = dCv/numOfParticles
-    print('Heat Capacity: {} +/- {}'.format(C,dC)))
+    print('Heat Capacity: {} +/- {}'.format(C,dC))
 
     # Diffusion
     #plt.figure('Diffusion')
@@ -593,4 +591,4 @@ def main(MDS_dict):
     #plt.xlabel('$3 \cdot 10^{-13}s$')
     #plt.show()
 
-    return MDS_dict
+    return avgP,Perr,C,dC
