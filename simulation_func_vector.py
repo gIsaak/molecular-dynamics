@@ -562,40 +562,29 @@ def main(MDS_dict):
     plt.ylabel('P')
     plt.show()
 
-    # Specific Heat (per particle)
-    # The two formulas are derived from the same relation published by Verlet:
-    # <dK^2>/<K> = T(1-3/(2C)) where C is the specific heat per particle
-
-    # The lecture notes provide the formula:
-    # <dK^2>/<K>^2 = 2/(3N)*(1-2/(2C))
-    # which makes use of equipartition: <K> = 3/2 * N * T / 119.8
-
-    # Since the mean kinetic energy will not always exactly match with our
-    # user set temperature, there will be some discrepancy between the forms.
-
-    # We can also use a 3rd form used by Lebowitz & Verlet in the same paper
-    # <dK^2> = 3*N*T^2/2 * (1-3/(2C))
-    # Here, the user set temperature is used instead of the average kinetic energy
-
-    meanT, meanTErr = averageAndError(T,True,True)
-    meanTsq, meanTsqErr = averageAndError(np.power(T,2),True,True,[10,1.5e9]) # the division by 1000 ensures the values don't get too large and curve_fit still works for finding the correlation length
-    #meanTsq = sum(np.power(T,2)) / len(T)
-    varTsq = meanTsq - meanT**2
-    #Cv1 = 1/((1 - varTsq/meanT**2 * 3*numOfParticles/2) * 2 / 3)
-    #print("Specific heat (formula 1): ", Cv1)
-    #Cv2 = 1/((1 - varTsq/meanT / (bathTemperature/119.8)) * 2 / 3)
-    #print("Specific heat (formula 2): ", Cv2)
-    Cv3 = 1/((1-varTsq*2/3/numOfParticles/(bathTemperature/119.8)**2) * 2 / 3)
-
-    print("meanT: ", meanT," meanTsq: ", meanTsq)
-    print("meanTErr: ", meanTErr,", meanTsqErr: ", meanTsqErr)
-    NTsq = numOfParticles*(bathTemperature/119.8)**2
-    dCdKsq = (4 * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
-    dCdK = (-8 * meanT * 9 * NTsq) / (6 * NTsq - 4 * varTsq)**2
-    dCv3 = np.sqrt((dCdKsq)**2 * meanTsqErr**2 + (dCdK)**2 * meanTErr**2)
-
-    print('Specific heat: {} +/- {}'.format(Cv3,dCv3))
-    print('Lebowitz comparison: {} +/- {}'.format(Cv3-3/2,dCv3))
+    # Heat Capacity (per particle)
+    
+    # We calculate the total heat capacity Cv according to the formula given in the lecture notes:
+    # <dK^2>/<K>^2 = 2/(3N) * (1-3N/(2Cv))
+    
+    # This can be rearranged to f = <K^2>/<K>^2 = 1 + 2/(3N) - 1/Cv
+    # we can use the known formula to compute the uncertainty of f and then propagate
+    # this uncertainty to Cv
+    
+    meanT, meanTErr = averageAndError(T,True,True,[10,1000])
+    meanTsq, meanTsqErr = averageAndError(np.power(T,2),True,True,[10,1.5e9])
+    
+    f = meanTsq/meanT**2
+    covKKsq = np.mean(np.multiply((T - meanT),(np.power(T,2)-meanTsq)))
+    df = abs(f)*np.sqrt((meanTsqErr/meanTsq)**2 + (2*meanTErr/meanT)**2 - 2*covKKsq/meanTsq/meanT**2)
+    
+    Cv = (1+2/(3*numOfParticles)-f)**(-1)
+    dCv = df/(1+2/(3*numOfParticles)-f)**2
+    
+    # convert to heat capacity per particle
+    C = Cv/numOfParticles
+    dC = dCv/numOfParticles
+    print('Heat Capacity: {} +/- {}'.format(C,dC)))
 
     # Diffusion
     #plt.figure('Diffusion')
