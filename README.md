@@ -1,11 +1,13 @@
-# Project 1: Molecular dynamics simulation of Argon atoms
+# Molecular dynamics simulation of Argon atoms
+
+Import of computational physics project @ TU Delft
+
+![particles](https://github.com/gIsaak/molecular-dynamics/blob/master/img/week3/multiple_particles.png)
 
 This project simulates the dynamics of Argon atoms under the influence of a Lennard-Jones potential.
 Currently, two particles moving in a box with periodic boundary conditions are simulated for a
 user-defined number of timesteps. The particle positions are plotted in a separate window as
 the simulation progresses.
-
-Requisites: numpy,matplotlib
 
 Authors:
 - Brennan Undseth
